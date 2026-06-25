@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   getSubmissions,
   deleteSubmission,
@@ -10,7 +10,9 @@ import {
   getRosterMeta,
   uploadRoster,
 } from '../utils/api';
-import { GRADE_LABELS } from '../data/grades';
+import { GRADE_LABELS, formatClassName } from '../data/grades';
+import { getSubjectName, getSubjectIcon } from '../data/subjects';
+import { getTeacherClass, isTeacherAuthed } from '../utils/teacherSession';
 import RosterNamesPanel from '../components/RosterNamesPanel';
 import {
   analyzeClassResults,
@@ -24,13 +26,16 @@ import { StyleBadge, StatCard, ScoreBars, EmptyState } from '../components/UI';
 
 export default function TeacherDashboardPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const teacherClass = getTeacherClass();
+  const rosterOnly = searchParams.get('tab') === 'roster';
   const [submissions, setSubmissions] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [sortBy, setSortBy] = useState('style');
   const [filterStyle, setFilterStyle] = useState('all');
   const [newPin, setNewPin] = useState('');
   const [currentPinDisplay, setCurrentPinDisplay] = useState('');
-  const [tab, setTab] = useState('overview');
+  const [tab, setTab] = useState(searchParams.get('tab') || 'overview');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [rosterMeta, setRosterMeta] = useState(null);
@@ -41,12 +46,16 @@ export default function TeacherDashboardPage() {
   const [fileInputKey, setFileInputKey] = useState(0);
 
   useEffect(() => {
-    if (sessionStorage.getItem('vark-teacher-auth') !== '1') {
+    if (!isTeacherAuthed()) {
       navigate('/teacher');
       return;
     }
+    if (!teacherClass && !rosterOnly) {
+      navigate('/teacher/class');
+      return;
+    }
     refresh();
-  }, [navigate]);
+  }, [navigate, teacherClass, rosterOnly]);
 
   async function refresh() {
     setLoading(true);
@@ -101,11 +110,17 @@ export default function TeacherDashboardPage() {
     }
   }
 
-  const analysis = useMemo(() => analyzeClassResults(submissions), [submissions]);
+  const classSubmissions = useMemo(() => {
+    if (!teacherClass) return submissions;
+    const className = formatClassName(teacherClass.grade, teacherClass.section);
+    return submissions.filter((s) => s.className === className);
+  }, [submissions, teacherClass]);
+
+  const analysis = useMemo(() => analyzeClassResults(classSubmissions), [classSubmissions]);
 
   const sorted = useMemo(
-    () => sortSubmissions(submissions, sortBy),
-    [submissions, sortBy]
+    () => sortSubmissions(classSubmissions, sortBy),
+    [classSubmissions, sortBy]
   );
 
   const filtered = useMemo(() => {
@@ -113,10 +128,10 @@ export default function TeacherDashboardPage() {
     return sorted.filter((s) => s.profileType === filterStyle);
   }, [sorted, filterStyle]);
 
-  const selected = submissions.find((s) => s.id === selectedId);
+  const selected = classSubmissions.find((s) => s.id === selectedId);
 
   function handleExport() {
-    const csv = exportToCsv(submissions);
+    const csv = exportToCsv(classSubmissions);
     const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -188,7 +203,7 @@ export default function TeacherDashboardPage() {
     );
   }
 
-  const styleDistribution = submissions.length
+  const styleDistribution = classSubmissions.length
     ? Object.entries(analysis.profileCounts)
         .filter(([, count]) => count > 0)
         .sort((a, b) => b[1] - a[1])
@@ -212,15 +227,25 @@ export default function TeacherDashboardPage() {
       <div className="dashboard-top">
         <div>
           <h1>لوحة المعلم — تحليل أنماط التعلم</h1>
+          {teacherClass && (
+            <p className="class-context-badge">
+              {getSubjectIcon(teacherClass.subject)} {getSubjectName(teacherClass.subject)}
+              {' · '}
+              {formatClassName(teacherClass.grade, teacherClass.section)}
+            </p>
+          )}
           <p className="muted">
-            👥 <strong>{rosterMeta?.totalStudents || 0}</strong> طالب مسجل في القائمة
-            {analysis.totalStudents > 0 && (
-              <> · ✅ <strong>{analysis.totalStudents}</strong> أنجزوا الاختبار</>
+            👥 <strong>{rosterMeta?.totalStudents || 0}</strong> طالب مسجل في المدرسة
+            {teacherClass && (
+              <> · 📋 <strong>{classSubmissions.length}</strong> أنجزوا الاختبار في هذه الشعبة</>
             )}
           </p>
         </div>
         <div className="dashboard-actions">
-          <button type="button" className="btn btn-secondary" onClick={handleExport}>تصدير CSV</button>
+          {teacherClass && (
+            <Link to="/teacher/class" className="btn btn-secondary">← تغيير الصف</Link>
+          )}
+          <button type="button" className="btn btn-secondary" onClick={handleExport} disabled={!classSubmissions.length}>تصدير CSV</button>
           <button type="button" className="btn btn-danger" onClick={handleClearAll}>مسح الكل</button>
           <button type="button" className="btn btn-secondary" onClick={logout}>خروج</button>
         </div>
@@ -247,13 +272,19 @@ export default function TeacherDashboardPage() {
         </button>
       </div>
 
-      {tab === 'overview' && !submissions.length && (
+      {tab === 'overview' && !classSubmissions.length && teacherClass && (
         <EmptyState
-          message="لا توجد نتائج بعد. ارفع قائمة الأسماء من تبويب «رفع القوائم» ثم اطلب من الطلاب إجراء الاختبار."
+          message={`لا توجد نتائج اختبار VARK لـ ${formatClassName(teacherClass.grade, teacherClass.section)} بعد. اطلب من الطلاب إجراء الاختبار.`}
+          actionLabel="عرض قائمة الأسماء"
+          actionTo="/teacher/class"
         />
       )}
 
-      {tab === 'overview' && submissions.length > 0 && (
+      {tab === 'overview' && !teacherClass && (
+        <EmptyState message="اختر الصف والشعبة أولًا." actionLabel="اختيار الصف" actionTo="/teacher/class" />
+      )}
+
+      {tab === 'overview' && classSubmissions.length > 0 && (
         <>
           <div className="stats-row">
             <StatCard title="عدد الطلاب" value={analysis.totalStudents} />
@@ -328,11 +359,11 @@ export default function TeacherDashboardPage() {
         </>
       )}
 
-      {tab === 'table' && !submissions.length && (
-        <EmptyState message="لا توجد نتائج لعرضها في الجدول بعد." />
+      {tab === 'table' && !classSubmissions.length && (
+        <EmptyState message="لا توجد نتائج في هذه الشعبة." actionTo="/teacher/class" actionLabel="عرض الأسماء" />
       )}
 
-      {tab === 'table' && submissions.length > 0 && (
+      {tab === 'table' && classSubmissions.length > 0 && (
         <div className="card table-card">
           <div className="table-controls">
             <label>
@@ -431,11 +462,11 @@ export default function TeacherDashboardPage() {
         </div>
       )}
 
-      {tab === 'individual' && !submissions.length && (
-        <EmptyState message="لا توجد نتائج للتحليل الفردي بعد." />
+      {tab === 'individual' && !classSubmissions.length && (
+        <EmptyState message="لا توجد نتائج فردية في هذه الشعبة." actionTo="/teacher/class" actionLabel="عرض الأسماء" />
       )}
 
-      {tab === 'individual' && submissions.length > 0 && (
+      {tab === 'individual' && classSubmissions.length > 0 && (
         <div className="individual-layout">
           <div className="card student-picker">
             <h3>اختر طالبًا</h3>

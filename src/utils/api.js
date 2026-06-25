@@ -1,3 +1,5 @@
+import { clearTeacherClass } from './teacherSession';
+
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 export const DEFAULT_TEACHER_PIN = 'teacher2024';
@@ -89,6 +91,7 @@ export async function setTeacherPin(newPin, currentPin) {
 export function clearTeacherSession() {
   sessionStorage.removeItem('vark-teacher-auth');
   sessionStorage.removeItem('vark-teacher-pin');
+  clearTeacherClass();
 }
 
 export async function getRosterMeta() {

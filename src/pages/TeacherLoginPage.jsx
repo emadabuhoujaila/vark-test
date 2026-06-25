@@ -16,7 +16,7 @@ export default function TeacherLoginPage() {
       const valid = await verifyTeacherPin(pin);
       if (valid) {
         sessionStorage.setItem('vark-teacher-auth', '1');
-        navigate('/teacher/dashboard');
+        navigate('/teacher/class');
       } else {
         setError('رمز الدخول غير صحيح');
       }
