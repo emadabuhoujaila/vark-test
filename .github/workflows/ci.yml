@@ -22,7 +22,16 @@ jobs:
       - run: npm run build
 
       - name: Start server smoke test
+        env:
+          NODE_ENV: production
         run: |
-          npm run start &
-          sleep 3
-          curl -f http://localhost:3001/api/health
+          mkdir -p data
+          node server/index.js &
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            if curl -sf http://localhost:3001/api/health; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Server did not respond"
+          exit 1
