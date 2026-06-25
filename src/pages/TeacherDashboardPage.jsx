@@ -7,7 +7,10 @@ import {
   getTeacherPin,
   setTeacherPin,
   clearTeacherSession,
+  getRosterMeta,
+  uploadRoster,
 } from '../utils/api';
+import { GRADE_LABELS } from '../data/grades';
 import {
   analyzeClassResults,
   sortSubmissions,
@@ -29,6 +32,11 @@ export default function TeacherDashboardPage() {
   const [tab, setTab] = useState('overview');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [rosterMeta, setRosterMeta] = useState(null);
+  const [uploadFile, setUploadFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadMsg, setUploadMsg] = useState('');
+  const [uploadError, setUploadError] = useState('');
 
   useEffect(() => {
     if (sessionStorage.getItem('vark-teacher-auth') !== '1') {
@@ -58,7 +66,37 @@ export default function TeacherDashboardPage() {
         .then((pin) => setCurrentPinDisplay(pin))
         .catch(() => setCurrentPinDisplay(''));
     }
+    if (tab === 'roster') {
+      loadRosterMeta();
+    }
   }, [tab]);
+
+  async function loadRosterMeta() {
+    try {
+      setRosterMeta(await getRosterMeta());
+    } catch {
+      setRosterMeta(null);
+    }
+  }
+
+  async function handleUploadRoster(e) {
+    e.preventDefault();
+    if (!uploadFile) return;
+    setUploading(true);
+    setUploadMsg('');
+    setUploadError('');
+    try {
+      const result = await uploadRoster(uploadFile);
+      setUploadMsg(result.message || `تم رفع ${result.totalStudents} اسمًا`);
+      setUploadFile(null);
+      e.currentTarget.reset();
+      await loadRosterMeta();
+    } catch (err) {
+      setUploadError(err.message || 'فشل رفع الملف');
+    } finally {
+      setUploading(false);
+    }
+  }
 
   const analysis = useMemo(() => analyzeClassResults(submissions), [submissions]);
 
@@ -147,38 +185,24 @@ export default function TeacherDashboardPage() {
     );
   }
 
-  if (!submissions.length) {
-    return (
-      <div className="page">
-        <div className="dashboard-top">
-          <h1>لوحة المعلم</h1>
-          <button type="button" className="btn btn-secondary" onClick={logout}>خروج</button>
-        </div>
-        <EmptyState
-          message="لا توجد نتائج بعد. اطلب من الطلاب إجراء الاختبار أولًا."
-          actionLabel="فتح صفحة الاختبار"
-          actionTo="/test"
-        />
-      </div>
-    );
-  }
-
-  const styleDistribution = Object.entries(analysis.profileCounts)
-    .filter(([, count]) => count > 0)
-    .sort((a, b) => b[1] - a[1])
-    .map(([key, count]) => {
-      let label = key;
-      let color = '#64748b';
-      if (key === 'MULTI') label = 'متعدد الأنماط';
-      else if (key.length === 1) {
-        label = STYLE_LABELS[key]?.name || key;
-        color = STYLE_LABELS[key]?.color;
-      } else if (key.length === 2) {
-        label = key.split('').map((s) => STYLE_LABELS[s]?.name).join(' + ');
-        color = STYLE_LABELS[key[0]]?.color;
-      }
-      return { key, count, label, color };
-    });
+  const styleDistribution = submissions.length
+    ? Object.entries(analysis.profileCounts)
+        .filter(([, count]) => count > 0)
+        .sort((a, b) => b[1] - a[1])
+        .map(([key, count]) => {
+          let label = key;
+          let color = '#64748b';
+          if (key === 'MULTI') label = 'متعدد الأنماط';
+          else if (key.length === 1) {
+            label = STYLE_LABELS[key]?.name || key;
+            color = STYLE_LABELS[key]?.color;
+          } else if (key.length === 2) {
+            label = key.split('').map((s) => STYLE_LABELS[s]?.name).join(' + ');
+            color = STYLE_LABELS[key[0]]?.color;
+          }
+          return { key, count, label, color };
+        })
+    : [];
 
   return (
     <div className="page dashboard-page">
@@ -204,12 +228,21 @@ export default function TeacherDashboardPage() {
         <button type="button" className={tab === 'individual' ? 'active' : ''} onClick={() => setTab('individual')}>
           التحليل الفردي
         </button>
+        <button type="button" className={tab === 'roster' ? 'active' : ''} onClick={() => setTab('roster')}>
+          رفع القوائم
+        </button>
         <button type="button" className={tab === 'settings' ? 'active' : ''} onClick={() => setTab('settings')}>
           الإعدادات
         </button>
       </div>
 
-      {tab === 'overview' && (
+      {tab === 'overview' && !submissions.length && (
+        <EmptyState
+          message="لا توجد نتائج بعد. ارفع قائمة الأسماء من تبويب «رفع القوائم» ثم اطلب من الطلاب إجراء الاختبار."
+        />
+      )}
+
+      {tab === 'overview' && submissions.length > 0 && (
         <>
           <div className="stats-row">
             <StatCard title="عدد الطلاب" value={analysis.totalStudents} />
@@ -284,7 +317,11 @@ export default function TeacherDashboardPage() {
         </>
       )}
 
-      {tab === 'table' && (
+      {tab === 'table' && !submissions.length && (
+        <EmptyState message="لا توجد نتائج لعرضها في الجدول بعد." />
+      )}
+
+      {tab === 'table' && submissions.length > 0 && (
         <div className="card table-card">
           <div className="table-controls">
             <label>
@@ -383,7 +420,11 @@ export default function TeacherDashboardPage() {
         </div>
       )}
 
-      {tab === 'individual' && (
+      {tab === 'individual' && !submissions.length && (
+        <EmptyState message="لا توجد نتائج للتحليل الفردي بعد." />
+      )}
+
+      {tab === 'individual' && submissions.length > 0 && (
         <div className="individual-layout">
           <div className="card student-picker">
             <h3>اختر طالبًا</h3>
@@ -441,6 +482,53 @@ export default function TeacherDashboardPage() {
               </Link>
             </div>
           )}
+        </div>
+      )}
+
+      {tab === 'roster' && (
+        <div className="card form-card roster-upload">
+          <h3>رفع قوائم الأسماء</h3>
+          <p className="muted">
+            ارفع ملف Excel مطابقًا لنموذج <strong>سجل الأسماء.xlsx</strong>.
+            كل ورقة باسم الصف والشعبة (مثل 7-1). عند الرفع مجددًا تُحدَّث الأسماء بالكامل.
+          </p>
+
+          {rosterMeta?.totalStudents > 0 && (
+            <div className="roster-status success-box">
+              <p><strong>{rosterMeta.totalStudents}</strong> اسمًا مسجّلًا</p>
+              <p className="muted">
+                آخر رفع: {new Date(rosterMeta.uploadedAt).toLocaleString('ar-SA')}
+              </p>
+              <p className="muted">
+                الصفوف: {rosterMeta.grades.map((g) => GRADE_LABELS[g] || g).join(' · ')}
+              </p>
+            </div>
+          )}
+
+          <form onSubmit={handleUploadRoster} className="student-form">
+            <label>
+              ملف Excel (.xlsx)
+              <input
+                type="file"
+                accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                required
+              />
+            </label>
+            {uploadError && <p className="error-msg">{uploadError}</p>}
+            {uploadMsg && <p className="success-msg">{uploadMsg}</p>}
+            <button type="submit" className="btn btn-primary btn-lg" disabled={uploading || !uploadFile}>
+              {uploading ? 'جاري الرفع...' : rosterMeta?.totalStudents ? 'تحديث القوائم' : 'رفع القوائم'}
+            </button>
+          </form>
+
+          <div className="hint">
+            <strong>أعمدة الملف المطلوبة:</strong>
+            <ul>
+              <li>م · الصف · الشعبة · رقم الطالب · اسم الطالب بالعربية · اسم الطالب بالإنجليزية</li>
+              <li>ورقة لكل شعبة: 5-1، 5-2، ... 7-1، 7-2، إلخ</li>
+            </ul>
+          </div>
         </div>
       )}
 

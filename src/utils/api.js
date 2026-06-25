@@ -7,12 +7,15 @@ function getTeacherPinHeader() {
 }
 
 async function request(path, options = {}) {
+  const headers = { ...(options.headers || {}) };
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+  if (!isFormData && !headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json';
+  }
+
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers || {}),
-    },
     ...options,
+    headers,
   });
 
   if (!res.ok) {
@@ -86,4 +89,41 @@ export async function setTeacherPin(newPin, currentPin) {
 export function clearTeacherSession() {
   sessionStorage.removeItem('vark-teacher-auth');
   sessionStorage.removeItem('vark-teacher-pin');
+}
+
+export async function getRosterMeta() {
+  return request('/roster/meta');
+}
+
+export async function getRosterGrades() {
+  return request('/roster/grades');
+}
+
+export async function getRosterSections(grade) {
+  return request(`/roster/sections?grade=${grade}`);
+}
+
+export async function getRosterStudents(grade, section) {
+  return request(`/roster/students?grade=${grade}&section=${section}`);
+}
+
+export async function uploadRoster(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await fetch(`${API_BASE}/roster/upload`, {
+    method: 'POST',
+    headers: { 'X-Teacher-Pin': getTeacherPinHeader() },
+    body: formData,
+  });
+  if (!res.ok) {
+    let message = 'فشل رفع الملف';
+    try {
+      const data = await res.json();
+      message = data.error || message;
+    } catch {
+      /* ignore */
+    }
+    throw new Error(message);
+  }
+  return res.json();
 }

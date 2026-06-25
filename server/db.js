@@ -41,6 +41,7 @@ export async function initDb() {
     if (pinRow.rowCount === 0) {
       await pool.query('INSERT INTO settings (key, value) VALUES ($1, $2)', ['teacher_pin', DEFAULT_PIN]);
     }
+    await runMigrations();
     console.log('Connected to PostgreSQL');
     return;
   }
@@ -54,6 +55,7 @@ export async function initDb() {
   if (!pinRow) {
     sqlite.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run('teacher_pin', DEFAULT_PIN);
   }
+  await runMigrations();
   console.log('Using SQLite database at data/vark.db');
 }
 
@@ -82,6 +84,7 @@ export async function createSubmission(data) {
     id,
     data.studentName,
     data.className || '',
+    data.studentNumber || '',
     JSON.stringify(data.answers),
     JSON.stringify(data.scores),
     JSON.stringify(data.percentages),
@@ -94,15 +97,15 @@ export async function createSubmission(data) {
   if (usePostgres) {
     await pool.query(
       `INSERT INTO submissions
-       (id, student_name, class_name, answers, scores, percentages, dominant_styles, profile_label, profile_type, submitted_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+       (id, student_name, class_name, student_number, answers, scores, percentages, dominant_styles, profile_label, profile_type, submitted_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
       payload
     );
   } else {
     sqlite.prepare(
       `INSERT INTO submissions
-       (id, student_name, class_name, answers, scores, percentages, dominant_styles, profile_label, profile_type, submitted_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?)`
+       (id, student_name, class_name, student_number, answers, scores, percentages, dominant_styles, profile_label, profile_type, submitted_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?)`
     ).run(...payload);
   }
 
@@ -156,4 +159,167 @@ export async function setTeacherPin(newPin, currentPin) {
 export async function verifyTeacherPin(pin) {
   const stored = await getTeacherPin();
   return stored === pin;
+}
+
+async function runMigrations() {
+  if (usePostgres) {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS students (
+        id TEXT PRIMARY KEY,
+        grade INTEGER NOT NULL,
+        section INTEGER NOT NULL,
+        student_number TEXT,
+        name_ar TEXT NOT NULL,
+        name_en TEXT
+      )
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_students_grade_section ON students(grade, section)
+    `);
+    await pool.query(`
+      ALTER TABLE submissions ADD COLUMN IF NOT EXISTS student_number TEXT
+    `);
+    return;
+  }
+
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS students (
+      id TEXT PRIMARY KEY,
+      grade INTEGER NOT NULL,
+      section INTEGER NOT NULL,
+      student_number TEXT,
+      name_ar TEXT NOT NULL,
+      name_en TEXT
+    )
+  `);
+  try {
+    sqlite.exec('ALTER TABLE submissions ADD COLUMN student_number TEXT');
+  } catch {
+    /* column exists */
+  }
+}
+
+export async function getRosterMeta() {
+  if (usePostgres) {
+    const countRes = await pool.query('SELECT COUNT(*)::int AS count FROM students');
+    const settingRes = await pool.query(
+      'SELECT value FROM settings WHERE key = $1',
+      ['roster_uploaded_at']
+    );
+    const gradesRes = await pool.query(
+      'SELECT DISTINCT grade FROM students ORDER BY grade'
+    );
+    return {
+      totalStudents: countRes.rows[0]?.count || 0,
+      uploadedAt: settingRes.rows[0]?.value || null,
+      grades: gradesRes.rows.map((r) => r.grade),
+    };
+  }
+
+  const countRow = sqlite.prepare('SELECT COUNT(*) AS count FROM students').get();
+  const settingRow = sqlite.prepare('SELECT value FROM settings WHERE key = ?').get('roster_uploaded_at');
+  const gradeRows = sqlite.prepare('SELECT DISTINCT grade FROM students ORDER BY grade').all();
+  return {
+    totalStudents: countRow?.count || 0,
+    uploadedAt: settingRow?.value || null,
+    grades: gradeRows.map((r) => r.grade),
+  };
+}
+
+export async function getRosterGrades() {
+  const meta = await getRosterMeta();
+  return meta.grades;
+}
+
+export async function getRosterSections(grade) {
+  const g = parseInt(grade, 10);
+  if (usePostgres) {
+    const { rows } = await pool.query(
+      'SELECT DISTINCT section FROM students WHERE grade = $1 ORDER BY section',
+      [g]
+    );
+    return rows.map((r) => r.section);
+  }
+  return sqlite
+    .prepare('SELECT DISTINCT section FROM students WHERE grade = ? ORDER BY section')
+    .all(g)
+    .map((r) => r.section);
+}
+
+export async function getRosterStudents(grade, section) {
+  const g = parseInt(grade, 10);
+  const s = parseInt(section, 10);
+  if (usePostgres) {
+    const { rows } = await pool.query(
+      `SELECT student_number, name_ar, name_en
+       FROM students WHERE grade = $1 AND section = $2
+       ORDER BY name_ar`,
+      [g, s]
+    );
+    return rows.map((r) => ({
+      studentNumber: r.student_number || '',
+      nameAr: r.name_ar,
+      nameEn: r.name_en || '',
+    }));
+  }
+  const rows = sqlite
+    .prepare(
+      `SELECT student_number, name_ar, name_en
+       FROM students WHERE grade = ? AND section = ?
+       ORDER BY name_ar`
+    )
+    .all(g, s);
+  return rows.map((r) => ({
+    studentNumber: r.student_number || '',
+    nameAr: r.name_ar,
+    nameEn: r.name_en || '',
+  }));
+}
+
+export async function replaceRoster(students) {
+  const uploadedAt = new Date().toISOString();
+
+  if (usePostgres) {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('DELETE FROM students');
+      for (const st of students) {
+        await client.query(
+          `INSERT INTO students (id, grade, section, student_number, name_ar, name_en)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [randomUUID(), st.grade, st.section, st.studentNumber, st.nameAr, st.nameEn]
+        );
+      }
+      await client.query(
+        `INSERT INTO settings (key, value) VALUES ($1, $2)
+         ON CONFLICT (key) DO UPDATE SET value = $2`,
+        ['roster_uploaded_at', uploadedAt]
+      );
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+    return { totalStudents: students.length, uploadedAt };
+  }
+
+  const insert = sqlite.prepare(
+    `INSERT INTO students (id, grade, section, student_number, name_ar, name_en)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  );
+  const replaceAll = sqlite.transaction((list) => {
+    sqlite.prepare('DELETE FROM students').run();
+    for (const st of list) {
+      insert.run(randomUUID(), st.grade, st.section, st.studentNumber, st.nameAr, st.nameEn);
+    }
+    sqlite.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)').run(
+      'roster_uploaded_at',
+      uploadedAt
+    );
+  });
+  replaceAll(students);
+  return { totalStudents: students.length, uploadedAt };
 }
