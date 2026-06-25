@@ -19,6 +19,7 @@ import {
   getRosterSections,
   getRosterStudents,
   replaceRoster,
+  getRosterSummary,
 } from './db.js';
 import { parseRosterExcel } from './rosterParser.js';
 
@@ -134,6 +135,15 @@ app.get('/api/roster/students', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'فشل تحميل الأسماء' });
+  }
+});
+
+app.get('/api/roster/summary', async (_req, res) => {
+  try {
+    res.json(await getRosterSummary());
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'فشل تحميل ملخص القائمة' });
   }
 });
 

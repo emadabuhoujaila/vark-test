@@ -107,6 +107,10 @@ export async function getRosterStudents(grade, section) {
   return request(`/roster/students?grade=${grade}&section=${section}`);
 }
 
+export async function getRosterSummary() {
+  return request('/roster/summary');
+}
+
 export async function uploadRoster(file) {
   const formData = new FormData();
   formData.append('file', file);

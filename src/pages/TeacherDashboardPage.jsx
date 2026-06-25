@@ -11,6 +11,7 @@ import {
   uploadRoster,
 } from '../utils/api';
 import { GRADE_LABELS } from '../data/grades';
+import RosterNamesPanel from '../components/RosterNamesPanel';
 import {
   analyzeClassResults,
   sortSubmissions,
@@ -37,6 +38,7 @@ export default function TeacherDashboardPage() {
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState('');
   const [uploadError, setUploadError] = useState('');
+  const [fileInputKey, setFileInputKey] = useState(0);
 
   useEffect(() => {
     if (sessionStorage.getItem('vark-teacher-auth') !== '1') {
@@ -50,8 +52,9 @@ export default function TeacherDashboardPage() {
     setLoading(true);
     setError('');
     try {
-      const data = await getSubmissions();
+      const [data, meta] = await Promise.all([getSubmissions(), getRosterMeta()]);
       setSubmissions(data);
+      setRosterMeta(meta);
       if (data.length && !selectedId) setSelectedId(data[0].id);
     } catch (err) {
       setError(err.message || 'فشل تحميل البيانات');
@@ -82,15 +85,14 @@ export default function TeacherDashboardPage() {
   async function handleUploadRoster(e) {
     e.preventDefault();
     if (!uploadFile) return;
-    const form = e.currentTarget;
     setUploading(true);
     setUploadMsg('');
     setUploadError('');
     try {
       const result = await uploadRoster(uploadFile);
-      setUploadMsg(result.message || `تم رفع ${result.totalStudents} اسمًا`);
+      setUploadMsg(result.message || `تم رفع ${result.totalStudents} اسمًا بنجاح`);
       setUploadFile(null);
-      form.reset();
+      setFileInputKey((k) => k + 1);
       await loadRosterMeta();
     } catch (err) {
       setUploadError(err.message || 'فشل رفع الملف');
@@ -210,7 +212,12 @@ export default function TeacherDashboardPage() {
       <div className="dashboard-top">
         <div>
           <h1>لوحة المعلم — تحليل أنماط التعلم</h1>
-          <p className="muted">{analysis.totalStudents} طالب/طالبة — {submissions[0]?.className || 'الصف السابع'}</p>
+          <p className="muted">
+            👥 <strong>{rosterMeta?.totalStudents || 0}</strong> طالب مسجل في القائمة
+            {analysis.totalStudents > 0 && (
+              <> · ✅ <strong>{analysis.totalStudents}</strong> أنجزوا الاختبار</>
+            )}
+          </p>
         </div>
         <div className="dashboard-actions">
           <button type="button" className="btn btn-secondary" onClick={handleExport}>تصدير CSV</button>
@@ -229,8 +236,11 @@ export default function TeacherDashboardPage() {
         <button type="button" className={tab === 'individual' ? 'active' : ''} onClick={() => setTab('individual')}>
           التحليل الفردي
         </button>
+        <button type="button" className={tab === 'names' ? 'active' : ''} onClick={() => setTab('names')}>
+          👥 قائمة الأسماء
+        </button>
         <button type="button" className={tab === 'roster' ? 'active' : ''} onClick={() => setTab('roster')}>
-          رفع القوائم
+          ⬆️ رفع القوائم
         </button>
         <button type="button" className={tab === 'settings' ? 'active' : ''} onClick={() => setTab('settings')}>
           الإعدادات
@@ -486,6 +496,8 @@ export default function TeacherDashboardPage() {
         </div>
       )}
 
+      {tab === 'names' && <RosterNamesPanel />}
+
       {tab === 'roster' && (
         <div className="card form-card roster-upload">
           <h3>رفع قوائم الأسماء</h3>
@@ -510,10 +522,14 @@ export default function TeacherDashboardPage() {
             <label>
               ملف Excel (.xlsx)
               <input
+                key={fileInputKey}
                 type="file"
                 accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
-                required
+                onChange={(e) => {
+                  setUploadFile(e.target.files?.[0] || null);
+                  setUploadError('');
+                  setUploadMsg('');
+                }}
               />
             </label>
             {uploadError && <p className="error-msg">{uploadError}</p>}

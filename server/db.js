@@ -276,6 +276,38 @@ export async function getRosterStudents(grade, section) {
   }));
 }
 
+export async function getRosterSummary() {
+  const query = `
+    SELECT grade, section, COUNT(*) AS count
+    FROM students
+    GROUP BY grade, section
+    ORDER BY grade, section
+  `;
+
+  let rows;
+  if (usePostgres) {
+    const result = await pool.query(query);
+    rows = result.rows;
+  } else {
+    rows = sqlite.prepare(query).all();
+  }
+
+  const byGrade = {};
+  for (const row of rows) {
+    const grade = Number(row.grade);
+    const section = Number(row.section);
+    const count = Number(row.count);
+    if (!byGrade[grade]) byGrade[grade] = { grade, sections: [], total: 0 };
+    byGrade[grade].sections.push({ section, count });
+    byGrade[grade].total += count;
+  }
+
+  return {
+    totalStudents: rows.reduce((sum, r) => sum + Number(r.count), 0),
+    grades: Object.values(byGrade).sort((a, b) => a.grade - b.grade),
+  };
+}
+
 export async function replaceRoster(students) {
   const uploadedAt = new Date().toISOString();
 

@@ -319,6 +319,154 @@ a {
   color: var(--muted);
 }
 
+.roster-names-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.empty-roster {
+  text-align: center;
+  padding: 3rem;
+}
+
+.roster-big-icon {
+  font-size: 3rem;
+  display: block;
+  margin-bottom: 1rem;
+}
+
+.grade-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.grade-card {
+  text-align: right;
+  padding: 1.25rem;
+  border: 2px solid var(--border);
+  border-radius: 14px;
+  background: white;
+  cursor: pointer;
+  font-family: var(--font);
+  transition: all 0.2s;
+}
+
+.grade-card:hover,
+.grade-card.active {
+  border-color: var(--primary);
+  background: #f0fdfa;
+}
+
+.grade-card-icon {
+  font-size: 1.75rem;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.grade-card-count {
+  display: block;
+  color: var(--primary);
+  font-weight: 700;
+  margin: 0.25rem 0 0.75rem;
+}
+
+.section-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.section-pill {
+  font-size: 0.75rem;
+  background: #e2e8f0;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+}
+
+.section-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.section-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 0.75rem 1rem;
+  border: 2px solid var(--border);
+  border-radius: 10px;
+  background: white;
+  font-family: var(--font);
+  cursor: pointer;
+  min-width: 100px;
+}
+
+.section-btn small {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.section-btn.active {
+  border-color: var(--primary);
+  background: #ccfbf1;
+}
+
+.student-name-list {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0 0;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.student-name-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.student-name-list li:last-child {
+  border-bottom: none;
+}
+
+.student-list-icon {
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.student-name-list strong {
+  display: block;
+}
+
+.student-name-list small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.student-id {
+  opacity: 0.7;
+}
+
+.student-num {
+  margin-right: auto;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.muted-inline {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 400;
+}
+
 .hint {
   margin-top: 1.5rem;
   font-size: 0.875rem;
