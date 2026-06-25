@@ -82,6 +82,7 @@ export default function TeacherDashboardPage() {
   async function handleUploadRoster(e) {
     e.preventDefault();
     if (!uploadFile) return;
+    const form = e.currentTarget;
     setUploading(true);
     setUploadMsg('');
     setUploadError('');
@@ -89,7 +90,7 @@ export default function TeacherDashboardPage() {
       const result = await uploadRoster(uploadFile);
       setUploadMsg(result.message || `تم رفع ${result.totalStudents} اسمًا`);
       setUploadFile(null);
-      e.currentTarget.reset();
+      form.reset();
       await loadRosterMeta();
     } catch (err) {
       setUploadError(err.message || 'فشل رفع الملف');
