@@ -1,1 +1,1 @@
-postgresql://neondb_owner:npg_SPQjHWoR8lT7@ep-lingering-lake-atnq9axa.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require
+postgresql://neondb_owner:npg_SPQjHWoR8lT7@ep-lingering-lake-atnq9axa-pooler.c-9.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require

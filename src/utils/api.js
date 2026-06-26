@@ -85,3 +85,21 @@ export function clearAdminAuth() {
 export function isAdminLoggedIn() {
   return Boolean(getToken('adminToken'));
 }
+
+export const adminCreateTeacher = (data) =>
+  request('/admin/teachers', { method: 'POST', body: JSON.stringify(data) }, 'adminToken');
+
+export const adminUpdateTeacher = (id, data) =>
+  request(`/admin/teachers/${id}`, { method: 'PUT', body: JSON.stringify(data) }, 'adminToken');
+
+export const adminResetTeacherPassword = (id, password) =>
+  request(`/admin/teachers/${id}/password`, {
+    method: 'PUT',
+    body: JSON.stringify({ password }),
+  }, 'adminToken');
+
+export const adminDeleteTeacher = (id) =>
+  request(`/admin/teachers/${id}`, { method: 'DELETE' }, 'adminToken');
+
+export const adminDeleteSubmission = (id) =>
+  request(`/admin/submissions/${id}`, { method: 'DELETE' }, 'adminToken');

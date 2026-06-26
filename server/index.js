@@ -18,6 +18,9 @@ import {
   createTeacher,
   findTeacherByEmail,
   findTeacherById,
+  updateTeacher,
+  updateTeacherPassword,
+  deleteTeacher,
   setTeacherAssignments,
   getTeacherAssignments,
   getTeacherDashboard,
@@ -27,6 +30,7 @@ import {
   getRosterSections,
   getRosterStudents,
   replaceRoster,
+  deleteSubmissionById,
 } from './db.js';
 import { parseRosterExcel } from './rosterParser.js';
 
@@ -238,6 +242,126 @@ app.post('/api/admin/roster/upload', requireAdmin, upload.single('file'), async 
     }
     console.error(err);
     res.status(500).json({ error: 'فشل رفع الملف' });
+  }
+});
+
+app.post('/api/admin/teachers', requireAdmin, async (req, res) => {
+  try {
+    const { email, password, fullName, assignments } = req.body;
+    if (!email?.trim() || !password || password.length < 6) {
+      return res.status(400).json({ error: 'البريد وكلمة المرور (6 أحرف+) مطلوبان' });
+    }
+    const existing = await findTeacherByEmail(email);
+    if (existing) return res.status(409).json({ error: 'البريد مسجل مسبقًا' });
+
+    const passwordHash = await hashPassword(password);
+    const teacher = await createTeacher({ email, passwordHash, fullName });
+    if (Array.isArray(assignments) && assignments.length) {
+      await setTeacherAssignments(teacher.id, assignments.map((a) => ({
+        subject: a.subject,
+        grade: Number(a.grade),
+        section: Number(a.section),
+      })));
+    }
+    const saved = await findTeacherById(teacher.id);
+    const teacherAssignments = await getTeacherAssignments(teacher.id);
+    res.status(201).json({
+      teacher: {
+        id: saved.id,
+        email: saved.email,
+        fullName: saved.full_name || '',
+        createdAt: saved.created_at,
+        assignments: teacherAssignments,
+      },
+      password,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'فشل إضافة المعلم' });
+  }
+});
+
+app.put('/api/admin/teachers/:id', requireAdmin, async (req, res) => {
+  try {
+    const teacher = await findTeacherById(req.params.id);
+    if (!teacher) return res.status(404).json({ error: 'المعلم غير موجود' });
+
+    const { email, fullName, assignments } = req.body;
+    if (email) {
+      const existing = await findTeacherByEmail(email);
+      if (existing && existing.id !== req.params.id) {
+        return res.status(409).json({ error: 'البريد مستخدم من معلم آخر' });
+      }
+    }
+
+    const updated = await updateTeacher(req.params.id, {
+      email: email || teacher.email,
+      fullName: fullName ?? teacher.full_name,
+    });
+
+    if (Array.isArray(assignments)) {
+      await setTeacherAssignments(req.params.id, assignments.map((a) => ({
+        subject: a.subject,
+        grade: Number(a.grade),
+        section: Number(a.section),
+      })));
+    }
+
+    const teacherAssignments = await getTeacherAssignments(req.params.id);
+    res.json({
+      teacher: {
+        id: updated.id,
+        email: updated.email,
+        fullName: updated.full_name || '',
+        createdAt: updated.created_at,
+        assignments: teacherAssignments,
+      },
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'فشل تحديث المعلم' });
+  }
+});
+
+app.put('/api/admin/teachers/:id/password', requireAdmin, async (req, res) => {
+  try {
+    const teacher = await findTeacherById(req.params.id);
+    if (!teacher) return res.status(404).json({ error: 'المعلم غير موجود' });
+
+    const { password } = req.body;
+    if (!password || password.length < 6) {
+      return res.status(400).json({ error: 'كلمة المرور 6 أحرف على الأقل' });
+    }
+
+    await updateTeacherPassword(req.params.id, await hashPassword(password));
+    res.json({ ok: true, password, message: 'تم تعيين كلمة المرور الجديدة' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'فشل تعيين كلمة المرور' });
+  }
+});
+
+app.delete('/api/admin/teachers/:id', requireAdmin, async (req, res) => {
+  try {
+    const teacher = await findTeacherById(req.params.id);
+    if (!teacher) return res.status(404).json({ error: 'المعلم غير موجود' });
+    await deleteTeacher(req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'فشل حذف المعلم' });
+  }
+});
+
+app.delete('/api/admin/submissions/:id', requireAdmin, async (req, res) => {
+  try {
+    const submission = await getSubmissionById(req.params.id);
+    if (!submission) return res.status(404).json({ error: 'النتيجة غير موجودة' });
+    await deleteSubmissionById(req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'فشل حذف النتيجة' });
   }
 });
 

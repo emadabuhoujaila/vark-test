@@ -8,9 +8,9 @@ import {
   clearTeacherAuth,
   isTeacherLoggedIn,
 } from '../../utils/api';
-import { analyzeClassResults } from '../../utils/varkScoring';
-import { StyleBadge, StatCard, ScoreBars } from '../../components/UI';
-import { STYLE_LABELS } from '../../data/varkQuestions';
+import { StatCard } from '../../components/UI';
+import SectionAnalysisPanel from '../../components/SectionAnalysisPanel';
+import StudentAnalysisModal from '../../components/StudentAnalysisModal';
 
 export default function TeacherHomePage() {
   const navigate = useNavigate();
@@ -18,6 +18,8 @@ export default function TeacherHomePage() {
   const [teacher, setTeacher] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeGroup, setActiveGroup] = useState(0);
+  const [view, setView] = useState('students');
+  const [selectedStudent, setSelectedStudent] = useState(null);
 
   useEffect(() => {
     if (!isTeacherLoggedIn()) {
@@ -45,7 +47,6 @@ export default function TeacherHomePage() {
   if (loading) return <div className="page"><div className="loading-state">جاري التحميل...</div></div>;
 
   const g = groups[activeGroup];
-  const analysis = g ? analyzeClassResults(g.submissions) : null;
 
   return (
     <div className="page dashboard-page">
@@ -66,7 +67,7 @@ export default function TeacherHomePage() {
             key={`${gr.subject}-${gr.grade}-${gr.section}`}
             type="button"
             className={activeGroup === i ? 'active' : ''}
-            onClick={() => setActiveGroup(i)}
+            onClick={() => { setActiveGroup(i); setSelectedStudent(null); }}
           >
             {getSubjectIcon(gr.subject)} {GRADE_LABELS[gr.grade]} · ش{gr.section}
           </button>
@@ -75,63 +76,76 @@ export default function TeacherHomePage() {
 
       {g && (
         <>
+          <div className="sub-tabs">
+            <button type="button" className={view === 'students' ? 'active' : ''} onClick={() => setView('students')}>
+              👥 قائمة الطلاب
+            </button>
+            <button type="button" className={view === 'analysis' ? 'active' : ''} onClick={() => setView('analysis')}>
+              📊 تحليل الشعبة
+            </button>
+          </div>
+
           <div className="stats-row">
             <StatCard title="الطلاب" value={g.totalStudents} />
-            <StatCard title="✅ أنجزوا الاختبار" value={g.completedCount} color="#059669" />
+            <StatCard title="✅ أنجزوا" value={g.completedCount} color="#059669" />
             <StatCard title="⏳ لم ينجزوا" value={g.totalStudents - g.completedCount} color="#d97706" />
           </div>
 
-          <div className="card table-card">
-            <h3>
-              {getSubjectIcon(g.subject)} {getSubjectName(g.subject)} — {g.className}
-            </h3>
-            <div className="table-wrap">
-              <table className="results-table roster-status-table">
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>الاسم</th>
-                    <th>رقم الطالب</th>
-                    <th>حالة الاختبار</th>
-                    <th>النمط</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {g.students.map((s, i) => (
-                    <tr key={s.studentNumber + s.nameAr} className={s.completed ? 'completed-row' : ''}>
-                      <td>{i + 1}</td>
-                      <td><strong>{s.nameAr}</strong></td>
-                      <td>{s.studentNumber || '—'}</td>
-                      <td>
-                        {s.completed
-                          ? <span className="status-done">✅ أنجز</span>
-                          : <span className="status-pending">⏳ لم ينجز</span>}
-                      </td>
-                      <td>
-                        {s.profileLabel && s.completed
-                          ? <span className="done-badge">{s.profileLabel}</span>
-                          : '—'}
-                      </td>
+          {view === 'students' && (
+            <div className="card table-card">
+              <h3>
+                {getSubjectIcon(g.subject)} {getSubjectName(g.subject)} — {g.className}
+              </h3>
+              <p className="muted hint-click">اضغط على أي طالب لعرض تحليله التفصيلي</p>
+              <div className="table-wrap">
+                <table className="results-table roster-status-table clickable-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>الاسم</th>
+                      <th>رقم الطالب</th>
+                      <th>حالة الاختبار</th>
+                      <th>النمط</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {g.submissions.length > 0 && analysis && (
-            <div className="card">
-              <h3>📊 تحليل VARK — {getSubjectName(g.subject)}</h3>
-              <p className="muted">{analysis.totalStudents} نتيجة في هذه الشعبة</p>
-              {analysis.totalStudents > 0 && (
-                <>
-                  <p>النمط الأغلب: <strong>{STYLE_LABELS[analysis.dominantClassStyle]?.name}</strong></p>
-                  <ScoreBars scores={analysis.averageScores} percentages={analysis.averagePercentages} />
-                </>
-              )}
+                  </thead>
+                  <tbody>
+                    {g.students.map((s, i) => (
+                      <tr
+                        key={s.studentNumber + s.nameAr}
+                        className={`${s.completed ? 'completed-row' : ''} clickable-row`}
+                        onClick={() => setSelectedStudent(s)}
+                      >
+                        <td>{i + 1}</td>
+                        <td><strong>{s.nameAr}</strong></td>
+                        <td>{s.studentNumber || '—'}</td>
+                        <td>
+                          {s.completed
+                            ? <span className="status-done">✅ أنجز</span>
+                            : <span className="status-pending">⏳ لم ينجز</span>}
+                        </td>
+                        <td>
+                          {s.profileLabel && s.completed
+                            ? <span className="done-badge">{s.profileLabel}</span>
+                            : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
+
+          {view === 'analysis' && <SectionAnalysisPanel group={g} />}
         </>
+      )}
+
+      {selectedStudent && (
+        <StudentAnalysisModal
+          student={selectedStudent}
+          className={g?.className}
+          onClose={() => setSelectedStudent(null)}
+        />
       )}
     </div>
   );

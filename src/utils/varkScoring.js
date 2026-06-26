@@ -73,6 +73,33 @@ export function analyzeClassResults(submissions) {
   };
 }
 
+export function getProfileBreakdown(submissions) {
+  const breakdown = {};
+  submissions.forEach((sub) => {
+    const label = sub.profileLabel || getProfileLabel(getDominantStyles(sub.scores));
+    breakdown[label] = (breakdown[label] || 0) + 1;
+  });
+  return Object.entries(breakdown)
+    .map(([label, count]) => ({ label, count }))
+    .sort((a, b) => b.count - a.count);
+}
+
+export function getCompletionStats(totalStudents, completedCount) {
+  const pending = Math.max(totalStudents - completedCount, 0);
+  const rate = totalStudents ? Math.round((completedCount / totalStudents) * 100) : 0;
+  return { totalStudents, completedCount, pending, rate };
+}
+
+export function getStyleLeaderboard(submissions) {
+  return STYLES.map((style) => ({
+    style,
+    count: submissions.filter((sub) => {
+      const dom = getDominantStyles(sub.scores);
+      return dom.length === 1 && dom[0] === style;
+    }).length,
+  })).sort((a, b) => b.count - a.count);
+}
+
 export function sortSubmissions(submissions, sortBy = 'name') {
   const order = { V: 0, A: 1, R: 2, K: 3, MULTI: 4 };
   return [...submissions].sort((a, b) => {

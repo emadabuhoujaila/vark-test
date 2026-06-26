@@ -409,6 +409,38 @@ export async function findTeacherById(id) {
   return sqlite.prepare('SELECT id, email, full_name, created_at FROM teachers WHERE id = ?').get(id) || null;
 }
 
+export async function updateTeacher(id, { email, fullName }) {
+  const normalizedEmail = email?.trim().toLowerCase();
+  if (usePostgres) {
+    await pool.query(
+      'UPDATE teachers SET email = $1, full_name = $2 WHERE id = $3',
+      [normalizedEmail, fullName || '', id]
+    );
+  } else {
+    sqlite.prepare('UPDATE teachers SET email = ?, full_name = ? WHERE id = ?')
+      .run(normalizedEmail, fullName || '', id);
+  }
+  return findTeacherById(id);
+}
+
+export async function updateTeacherPassword(id, passwordHash) {
+  if (usePostgres) {
+    await pool.query('UPDATE teachers SET password_hash = $1 WHERE id = $2', [passwordHash, id]);
+  } else {
+    sqlite.prepare('UPDATE teachers SET password_hash = ? WHERE id = ?').run(passwordHash, id);
+  }
+}
+
+export async function deleteTeacher(id) {
+  if (usePostgres) {
+    await pool.query('DELETE FROM teacher_assignments WHERE teacher_id = $1', [id]);
+    await pool.query('DELETE FROM teachers WHERE id = $1', [id]);
+  } else {
+    sqlite.prepare('DELETE FROM teacher_assignments WHERE teacher_id = ?').run(id);
+    sqlite.prepare('DELETE FROM teachers WHERE id = ?').run(id);
+  }
+}
+
 export async function setTeacherAssignments(teacherId, assignments) {
   if (usePostgres) {
     const client = await pool.connect();
@@ -499,6 +531,17 @@ export async function getTeacherDashboard(teacherId) {
         completed: Boolean(sub),
         submissionId: sub?.id || null,
         profileLabel: sub?.profileLabel || null,
+        submission: sub
+          ? {
+              id: sub.id,
+              scores: sub.scores,
+              percentages: sub.percentages,
+              dominantStyles: sub.dominantStyles,
+              profileLabel: sub.profileLabel,
+              profileType: sub.profileType,
+              submittedAt: sub.submittedAt,
+            }
+          : null,
       };
     });
     const sectionSubmissions = allSubmissions.filter((s) => s.className === className);

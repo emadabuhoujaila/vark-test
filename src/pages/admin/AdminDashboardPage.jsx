@@ -3,9 +3,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   getAdminOverview,
   adminUploadRoster,
+  adminDeleteSubmission,
   clearAdminAuth,
   isAdminLoggedIn,
 } from '../../utils/api';
+import AdminTeachersPanel from '../../components/admin/AdminTeachersPanel';
 import { SUBJECTS } from '../../data/subjects';
 import { GRADE_LABELS } from '../../data/grades';
 import { getSubjectName } from '../../data/subjects';
@@ -22,6 +24,7 @@ export default function AdminDashboardPage() {
   const [uploadMsg, setUploadMsg] = useState('');
   const [uploadError, setUploadError] = useState('');
   const [fileKey, setFileKey] = useState(0);
+  const [deleteError, setDeleteError] = useState('');
 
   function refresh() {
     setLoading(true);
@@ -60,6 +63,17 @@ export default function AdminDashboardPage() {
     navigate('/admin');
   }
 
+  async function handleDeleteSubmission(id, name) {
+    if (!window.confirm(`حذف نتيجة ${name}؟`)) return;
+    setDeleteError('');
+    try {
+      await adminDeleteSubmission(id);
+      refresh();
+    } catch (err) {
+      setDeleteError(err.message);
+    }
+  }
+
   if (loading || !data) {
     return <div className="page"><div className="loading-state">جاري التحميل...</div></div>;
   }
@@ -82,6 +96,7 @@ export default function AdminDashboardPage() {
         <button type="button" className={tab === 'overview' ? 'active' : ''} onClick={() => setTab('overview')}>تحليل عام</button>
         <button type="button" className={tab === 'classes' ? 'active' : ''} onClick={() => setTab('classes')}>الصفوف والشعب</button>
         <button type="button" className={tab === 'teachers' ? 'active' : ''} onClick={() => setTab('teachers')}>المعلمون</button>
+        <button type="button" className={tab === 'results' ? 'active' : ''} onClick={() => setTab('results')}>نتائج الاختبار</button>
         <button type="button" className={tab === 'subjects' ? 'active' : ''} onClick={() => setTab('subjects')}>المواد</button>
         <button type="button" className={tab === 'roster' ? 'active' : ''} onClick={() => setTab('roster')}>رفع القوائم</button>
       </div>
@@ -120,27 +135,40 @@ export default function AdminDashboardPage() {
       )}
 
       {tab === 'teachers' && (
+        <AdminTeachersPanel teachers={data.teachers} onRefresh={refresh} />
+      )}
+
+      {tab === 'results' && (
         <div className="card table-card">
-          <h3>👨‍🏫 سجل المعلمين ({data.teachers.length})</h3>
+          <h3>📋 نتائج VARK ({data.submissions.length})</h3>
+          {deleteError && <p className="error-msg">{deleteError}</p>}
           <div className="table-wrap">
             <table className="results-table">
               <thead>
-                <tr><th>الاسم</th><th>البريد</th><th>الحصص</th><th>تاريخ التسجيل</th></tr>
+                <tr>
+                  <th>الاسم</th>
+                  <th>الصف</th>
+                  <th>النمط</th>
+                  <th>التاريخ</th>
+                  <th>حذف</th>
+                </tr>
               </thead>
               <tbody>
-                {data.teachers.map((t) => (
-                  <tr key={t.id}>
-                    <td>{t.fullName || '—'}</td>
-                    <td dir="ltr">{t.email}</td>
+                {data.submissions.map((s) => (
+                  <tr key={s.id}>
+                    <td><strong>{s.studentName}</strong></td>
+                    <td>{s.className}</td>
+                    <td>{s.profileLabel}</td>
+                    <td>{new Date(s.submittedAt).toLocaleString('ar-SA')}</td>
                     <td>
-                      {t.assignments.map((a) => (
-                        <span key={`${a.subject}-${a.grade}-${a.section}`} className="class-pill">
-                          {getSubjectName(a.subject)} {GRADE_LABELS[a.grade]}-{a.section}
-                        </span>
-                      ))}
-                      {!t.assignments.length && <span className="muted">لم يحدد بعد</span>}
+                      <button
+                        type="button"
+                        className="btn btn-danger btn-sm"
+                        onClick={() => handleDeleteSubmission(s.id, s.studentName)}
+                      >
+                        حذف
+                      </button>
                     </td>
-                    <td>{new Date(t.createdAt).toLocaleDateString('ar-SA')}</td>
                   </tr>
                 ))}
               </tbody>
