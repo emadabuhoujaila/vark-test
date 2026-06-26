@@ -627,14 +627,30 @@ export async function getAdminOverview() {
   const submissions = await getAllSubmissions();
 
   const registeredSubjects = new Set();
+  const assignmentKeys = new Set();
   for (const t of teachers) {
-    for (const a of t.assignments) registeredSubjects.add(a.subject);
+    for (const a of t.assignments) {
+      registeredSubjects.add(a.subject);
+      assignmentKeys.add(`${a.grade}-${a.section}-${a.subject}`);
+    }
   }
 
   const subjectStatus = SUBJECT_IDS.map((id) => ({
     id,
     registered: registeredSubjects.has(id),
     teacherCount: teachers.filter((t) => t.assignments.some((a) => a.subject === id)).length,
+  }));
+
+  const subjectMatrix = summary.grades.map((g) => ({
+    grade: g.grade,
+    sections: g.sections.map(({ section, count }) => ({
+      section,
+      studentCount: count,
+      subjects: SUBJECT_IDS.map((id) => ({
+        id,
+        registered: assignmentKeys.has(`${g.grade}-${section}-${id}`),
+      })),
+    })),
   }));
 
   return {
@@ -644,6 +660,7 @@ export async function getAdminOverview() {
     totalSubmissions: submissions.length,
     teachers,
     subjectStatus,
+    subjectMatrix,
     submissions,
   };
 }

@@ -8,7 +8,7 @@ import {
   isAdminLoggedIn,
 } from '../../utils/api';
 import AdminTeachersPanel from '../../components/admin/AdminTeachersPanel';
-import { SUBJECTS } from '../../data/subjects';
+import AdminSubjectMatrix from '../../components/admin/AdminSubjectMatrix';
 import { GRADE_LABELS } from '../../data/grades';
 import { getSubjectName } from '../../data/subjects';
 import { analyzeClassResults } from '../../utils/varkScoring';
@@ -181,16 +181,14 @@ export default function AdminDashboardPage() {
 
       {tab === 'subjects' && (
         <div className="card">
-          <h3>📖 حالة المواد</h3>
-          <div className="subject-status-grid">
-            {data.subjectStatus.map((s) => (
-              <div key={s.id} className={`subject-status-card ${s.registered ? 'registered' : 'empty'}`}>
-                <span>{SUBJECTS.find((x) => x.id === s.id)?.icon}</span>
-                <strong>{getSubjectName(s.id)}</strong>
-                <p>{s.registered ? `✅ ${s.teacherCount} معلم` : '❌ غير مسجل'}</p>
-              </div>
-            ))}
-          </div>
+          <h3>📖 حالة المواد — حسب الصف والشعبة</h3>
+          <p className="muted subject-matrix-legend">
+            <span className="legend-sample registered">مسجّل</span>
+            معلم مسجّل للمادة في هذه الشعبة ·
+            <span className="legend-sample unregistered">غير مسجّل</span>
+            لا يوجد معلم بعد
+          </p>
+          <AdminSubjectMatrix matrix={data.subjectMatrix} />
         </div>
       )}
 
