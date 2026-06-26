@@ -59,6 +59,17 @@ const SCENE_VISUALS = {
   discussion: { emoji: '💬', label: 'مناقشة', color: '#2563eb' },
   memorization: { emoji: '🧠', label: 'الحفظ', color: '#64748b' },
   'islamic-general': { emoji: '🕌', label: 'إسلامية', color: '#0d9488' },
+  map: { emoji: '🗺️', label: 'الخريطة', color: '#2563eb' },
+  history: { emoji: '📜', label: 'التاريخ', color: '#b45309' },
+  timeline: { emoji: '📅', label: 'الخط الزمني', color: '#6366f1' },
+  geography: { emoji: '🏜️', label: 'الجغرافيا', color: '#d97706' },
+  civics: { emoji: '⚖️', label: 'المواطنة', color: '#0891b2' },
+  economy: { emoji: '💼', label: 'الاقتصاد', color: '#059669' },
+  environment: { emoji: '🌿', label: 'البيئة', color: '#16a34a' },
+  culture: { emoji: '🎭', label: 'التراث', color: '#7c3aed' },
+  uae: { emoji: '🇦🇪', label: 'الإمارات', color: '#dc2626' },
+  community: { emoji: '🏘️', label: 'المجتمع', color: '#0d9488' },
+  'social-general': { emoji: '🌍', label: 'اجتماعيات', color: '#0369a1' },
 };
 
 export default function QuestionImage({ scene, questionId, small }) {
