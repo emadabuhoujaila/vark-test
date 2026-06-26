@@ -1770,4 +1770,152 @@ a {
   .main {
     padding: 1rem;
   }
+
+  .messages-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Messages */
+.messages-panel {
+  margin-top: 0.5rem;
+}
+
+.messages-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.messages-layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 340px) 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+
+.messages-list {
+  padding: 0;
+  max-height: 520px;
+  overflow-y: auto;
+}
+
+.message-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  text-align: right;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.message-item:hover,
+.message-item.active {
+  background: #f0fdfa;
+}
+
+.message-item.unread {
+  background: #eff6ff;
+  border-right: 3px solid var(--accent);
+}
+
+.message-item strong {
+  font-size: 0.9rem;
+}
+
+.message-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.message-preview {
+  font-size: 0.8rem;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.message-detail {
+  min-height: 320px;
+  padding: 1rem;
+}
+
+.message-detail-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.message-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.thread-bubble {
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+
+.thread-bubble.from-admin {
+  background: #f0fdfa;
+  border-color: #99f6e4;
+}
+
+.thread-bubble.from-teacher {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.thread-bubble-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.thread-bubble p {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.message-reply-form textarea {
+  width: 100%;
+  margin-top: 0.35rem;
+}
+
+.forgot-link {
+  display: block;
+  margin: 0.75rem auto 0;
+  color: var(--accent);
+  font-size: 0.9rem;
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
 }

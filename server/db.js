@@ -206,6 +206,15 @@ async function runMigrations() {
       id TEXT PRIMARY KEY, teacher_id TEXT NOT NULL, subject TEXT NOT NULL,
       grade INTEGER NOT NULL, section INTEGER NOT NULL,
       UNIQUE(teacher_id, subject, grade, section))`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS messages (
+      id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, parent_id TEXT,
+      sender_type TEXT NOT NULL, teacher_id TEXT NOT NULL,
+      subject TEXT NOT NULL, body TEXT NOT NULL,
+      read_by_admin_at TEXT, read_by_teacher_at TEXT,
+      admin_deleted_at TEXT, teacher_deleted_at TEXT,
+      created_at TEXT NOT NULL)`);
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_messages_teacher ON messages(teacher_id)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(thread_id)');
     return;
   }
 
@@ -218,6 +227,18 @@ async function runMigrations() {
   try { sqlite.exec('ALTER TABLE submissions ADD COLUMN student_number TEXT'); } catch { /* ok */ }
   try { sqlite.exec('ALTER TABLE submissions ADD COLUMN subject TEXT'); } catch { /* ok */ }
   sqlite.exec(teacherTables);
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS messages (
+      id TEXT PRIMARY KEY, thread_id TEXT NOT NULL, parent_id TEXT,
+      sender_type TEXT NOT NULL, teacher_id TEXT NOT NULL,
+      subject TEXT NOT NULL, body TEXT NOT NULL,
+      read_by_admin_at TEXT, read_by_teacher_at TEXT,
+      admin_deleted_at TEXT, teacher_deleted_at TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_messages_teacher ON messages(teacher_id);
+    CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(thread_id);
+  `);
 }
 
 export async function getRosterMeta() {
@@ -663,4 +684,222 @@ export async function getAdminOverview() {
     subjectMatrix,
     submissions,
   };
+}
+
+// ─── Messages (admin ↔ teacher) ───
+
+function mapMessageRow(row, teacher = null) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    threadId: row.thread_id,
+    parentId: row.parent_id || null,
+    senderType: row.sender_type,
+    teacherId: row.teacher_id,
+    teacherName: teacher?.full_name || teacher?.fullName || '',
+    teacherEmail: teacher?.email || '',
+    subject: row.subject,
+    body: row.body,
+    readByAdminAt: row.read_by_admin_at || null,
+    readByTeacherAt: row.read_by_teacher_at || null,
+    createdAt: row.created_at,
+  };
+}
+
+async function enrichMessages(rows) {
+  const cache = new Map();
+  const out = [];
+  for (const row of rows) {
+    let teacher = cache.get(row.teacher_id);
+    if (!teacher) {
+      teacher = await findTeacherById(row.teacher_id);
+      cache.set(row.teacher_id, teacher);
+    }
+    out.push(mapMessageRow(row, teacher));
+  }
+  return out;
+}
+
+export async function createMessage({ threadId, parentId, senderType, teacherId, subject, body }) {
+  const id = randomUUID();
+  const createdAt = new Date().toISOString();
+  const actualThreadId = threadId || id;
+
+  if (usePostgres) {
+    await pool.query(
+      `INSERT INTO messages
+       (id, thread_id, parent_id, sender_type, teacher_id, subject, body, created_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [id, actualThreadId, parentId || null, senderType, teacherId, subject, body, createdAt]
+    );
+  } else {
+    sqlite.prepare(
+      `INSERT INTO messages
+       (id, thread_id, parent_id, sender_type, teacher_id, subject, body, created_at)
+       VALUES (?,?,?,?,?,?,?,?)`
+    ).run(id, actualThreadId, parentId || null, senderType, teacherId, subject, body, createdAt);
+  }
+  return getMessageById(id);
+}
+
+export async function getMessageById(id) {
+  let row;
+  if (usePostgres) {
+    const { rows } = await pool.query('SELECT * FROM messages WHERE id = $1', [id]);
+    row = rows[0];
+  } else {
+    row = sqlite.prepare('SELECT * FROM messages WHERE id = ?').get(id);
+  }
+  if (!row) return null;
+  const teacher = await findTeacherById(row.teacher_id);
+  return mapMessageRow(row, teacher);
+}
+
+export async function getThreadMessages(threadId) {
+  let rows;
+  if (usePostgres) {
+    const { rows: r } = await pool.query(
+      'SELECT * FROM messages WHERE thread_id = $1 ORDER BY created_at ASC',
+      [threadId]
+    );
+    rows = r;
+  } else {
+    rows = sqlite.prepare(
+      'SELECT * FROM messages WHERE thread_id = ? ORDER BY created_at ASC'
+    ).all(threadId);
+  }
+  return enrichMessages(rows);
+}
+
+export async function listAdminInbox() {
+  const sql = `
+    SELECT * FROM messages
+    WHERE sender_type = 'teacher' AND admin_deleted_at IS NULL
+    ORDER BY created_at DESC
+  `;
+  const rows = usePostgres
+    ? (await pool.query(sql)).rows
+    : sqlite.prepare(sql).all();
+  return enrichMessages(rows);
+}
+
+export async function listAdminOutbox() {
+  const sql = `
+    SELECT * FROM messages
+    WHERE sender_type = 'admin' AND admin_deleted_at IS NULL
+    ORDER BY created_at DESC
+  `;
+  const rows = usePostgres
+    ? (await pool.query(sql)).rows
+    : sqlite.prepare(sql).all();
+  return enrichMessages(rows);
+}
+
+export async function listTeacherInbox(teacherId) {
+  if (usePostgres) {
+    const { rows } = await pool.query(
+      `SELECT * FROM messages
+       WHERE sender_type = 'admin' AND teacher_id = $1 AND teacher_deleted_at IS NULL
+       ORDER BY created_at DESC`,
+      [teacherId]
+    );
+    return enrichMessages(rows);
+  }
+  const rows = sqlite.prepare(
+    `SELECT * FROM messages
+     WHERE sender_type = 'admin' AND teacher_id = ? AND teacher_deleted_at IS NULL
+     ORDER BY created_at DESC`
+  ).all(teacherId);
+  return enrichMessages(rows);
+}
+
+export async function listTeacherOutbox(teacherId) {
+  if (usePostgres) {
+    const { rows } = await pool.query(
+      `SELECT * FROM messages
+       WHERE sender_type = 'teacher' AND teacher_id = $1 AND teacher_deleted_at IS NULL
+       ORDER BY created_at DESC`,
+      [teacherId]
+    );
+    return enrichMessages(rows);
+  }
+  const rows = sqlite.prepare(
+    `SELECT * FROM messages
+     WHERE sender_type = 'teacher' AND teacher_id = ? AND teacher_deleted_at IS NULL
+     ORDER BY created_at DESC`
+  ).all(teacherId);
+  return enrichMessages(rows);
+}
+
+export async function markMessageReadByAdmin(id) {
+  const now = new Date().toISOString();
+  if (usePostgres) {
+    await pool.query(
+      'UPDATE messages SET read_by_admin_at = COALESCE(read_by_admin_at, $1) WHERE id = $2',
+      [now, id]
+    );
+  } else {
+    sqlite.prepare(
+      'UPDATE messages SET read_by_admin_at = COALESCE(read_by_admin_at, ?) WHERE id = ?'
+    ).run(now, id);
+  }
+}
+
+export async function markMessageReadByTeacher(id, teacherId) {
+  const now = new Date().toISOString();
+  if (usePostgres) {
+    await pool.query(
+      `UPDATE messages SET read_by_teacher_at = COALESCE(read_by_teacher_at, $1)
+       WHERE id = $2 AND teacher_id = $3`,
+      [now, id, teacherId]
+    );
+  } else {
+    sqlite.prepare(
+      `UPDATE messages SET read_by_teacher_at = COALESCE(read_by_teacher_at, ?)
+       WHERE id = ? AND teacher_id = ?`
+    ).run(now, id, teacherId);
+  }
+}
+
+export async function deleteMessageForAdmin(id) {
+  const now = new Date().toISOString();
+  if (usePostgres) {
+    await pool.query(
+      `UPDATE messages SET admin_deleted_at = $1, teacher_deleted_at = $1 WHERE id = $2`,
+      [now, id]
+    );
+  } else {
+    sqlite.prepare(
+      'UPDATE messages SET admin_deleted_at = ?, teacher_deleted_at = ? WHERE id = ?'
+    ).run(now, now, id);
+  }
+}
+
+export async function deleteMessageForTeacher(id, teacherId) {
+  const now = new Date().toISOString();
+  if (usePostgres) {
+    const { rowCount } = await pool.query(
+      `UPDATE messages SET teacher_deleted_at = $1 WHERE id = $2 AND teacher_id = $3`,
+      [now, id, teacherId]
+    );
+    return rowCount > 0;
+  }
+  const result = sqlite.prepare(
+    'UPDATE messages SET teacher_deleted_at = ? WHERE id = ? AND teacher_id = ?'
+  ).run(now, id, teacherId);
+  return result.changes > 0;
+}
+
+export async function createPasswordResetRequest(email) {
+  const teacher = await findTeacherByEmail(email);
+  if (!teacher) return { ok: true, sent: false };
+
+  const name = teacher.full_name || teacher.email;
+  await createMessage({
+    senderType: 'teacher',
+    teacherId: teacher.id,
+    subject: 'طلب استعادة كلمة المرور',
+    body: `طلب المعلم/ة ${name} (${teacher.email}) استعادة كلمة المرور.\nيرجى تعيين كلمة مرور جديدة من لوحة المعلمين ثم إبلاغه/ها.`,
+  });
+  return { ok: true, sent: true };
 }

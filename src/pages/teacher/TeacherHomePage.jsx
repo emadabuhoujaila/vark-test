@@ -28,10 +28,6 @@ export default function TeacherHomePage() {
     }
     Promise.all([getTeacherMe(), getTeacherDashboard()])
       .then(([me, dash]) => {
-        if (!me.assignments?.length) {
-          navigate('/teacher/setup');
-          return;
-        }
         setTeacher(me.teacher);
         setGroups(dash.groups || []);
       })
@@ -56,10 +52,16 @@ export default function TeacherHomePage() {
           <p className="muted">{groups.length} حصة مسجّلة · {groups.reduce((n, x) => n + x.totalStudents, 0)} طالب</p>
         </div>
         <div className="dashboard-actions">
-          <Link to="/teacher/setup" className="btn btn-secondary">تعديل الصفوف</Link>
+          <Link to="/teacher/messages" className="btn btn-secondary">✉️ المراسلات</Link>
           <button type="button" className="btn btn-secondary" onClick={logout}>خروج</button>
         </div>
       </div>
+
+      {!groups.length && (
+        <div className="warn-box">
+          <p>لم تُحدَّد حصصك بعد. تواصل مع التنظيم عبر <Link to="/teacher/messages">المراسلات</Link>.</p>
+        </div>
+      )}
 
       <div className="group-tabs">
         {groups.map((gr, i) => (

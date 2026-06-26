@@ -1,27 +1,42 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { teacherLogin, teacherRegister, saveTeacherToken, getTeacherMe } from '../../utils/api';
+import { teacherLogin, teacherForgotPassword, saveTeacherToken } from '../../utils/api';
 
 export default function TeacherAuthPage() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
 
   async function handleSubmit(e) {
     e.preventDefault();
     setLoading(true);
     setError('');
+    setSuccess('');
     try {
-      const data = mode === 'login'
-        ? await teacherLogin({ email, password })
-        : await teacherRegister({ email, password, fullName });
+      const data = await teacherLogin({ email, password });
       saveTeacherToken(data.token);
-      const me = await getTeacherMe();
-      navigate(me.assignments?.length ? '/teacher/home' : '/teacher/setup');
+      navigate('/teacher/home');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleForgot(e) {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    setSuccess('');
+    try {
+      const r = await teacherForgotPassword(forgotEmail);
+      setSuccess(r.message);
+      setShowForgot(false);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -34,37 +49,46 @@ export default function TeacherAuthPage() {
       <div className="card form-card portal-card">
         <span className="portal-icon">👨‍🏫</span>
         <h1>بوابة المعلم</h1>
-        <p className="muted">تسجيل الدخول أو إنشاء حساب معلم جديد</p>
+        <p className="muted">تسجيل الدخول بالبريد وكلمة المرور — يُنشئ حسابك التنظيم</p>
 
-        <div className="mode-toggle">
-          <button type="button" className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')}>
-            دخول
-          </button>
-          <button type="button" className={mode === 'register' ? 'active' : ''} onClick={() => setMode('register')}>
-            تسجيل معلم جديد
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="student-form">
-          {mode === 'register' && (
+        {!showForgot ? (
+          <>
+            <form onSubmit={handleSubmit} className="student-form">
+              <label>
+                البريد الإلكتروني
+                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required dir="ltr" />
+              </label>
+              <label>
+                كلمة المرور
+                <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} dir="ltr" />
+              </label>
+              {error && <p className="error-msg">{error}</p>}
+              {success && <p className="success-msg">{success}</p>}
+              <button type="submit" className="btn btn-primary btn-lg" disabled={loading}>
+                {loading ? 'جاري...' : 'دخول'}
+              </button>
+            </form>
+            <button type="button" className="link-btn forgot-link" onClick={() => { setShowForgot(true); setError(''); setForgotEmail(email); }}>
+              نسيت كلمة المرور؟
+            </button>
+          </>
+        ) : (
+          <form onSubmit={handleForgot} className="student-form">
+            <p className="muted">سنرسل طلبًا إلى التنظيم لاستعادة كلمة المرور</p>
             <label>
-              الاسم
-              <input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="اسم المعلم" />
+              البريد الإلكتروني
+              <input type="email" value={forgotEmail} onChange={(e) => setForgotEmail(e.target.value)} required dir="ltr" />
             </label>
-          )}
-          <label>
-            البريد الإلكتروني
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required dir="ltr" />
-          </label>
-          <label>
-            كلمة المرور
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} dir="ltr" />
-          </label>
-          {error && <p className="error-msg">{error}</p>}
-          <button type="submit" className="btn btn-primary btn-lg" disabled={loading}>
-            {loading ? 'جاري...' : mode === 'login' ? 'دخول' : 'تسجيل ومتابعة'}
-          </button>
-        </form>
+            {error && <p className="error-msg">{error}</p>}
+            <div className="modal-actions">
+              <button type="button" className="btn btn-secondary" onClick={() => setShowForgot(false)}>رجوع</button>
+              <button type="submit" className="btn btn-primary" disabled={loading}>
+                {loading ? 'جاري الإرسال...' : 'إرسال الطلب'}
+              </button>
+            </div>
+          </form>
+        )}
+
         <Link to="/" className="back-link">← الرئيسية</Link>
       </div>
     </div>

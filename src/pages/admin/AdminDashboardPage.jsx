@@ -9,6 +9,7 @@ import {
 } from '../../utils/api';
 import AdminTeachersPanel from '../../components/admin/AdminTeachersPanel';
 import AdminSubjectMatrix from '../../components/admin/AdminSubjectMatrix';
+import AdminMessagesPanel from '../../components/admin/AdminMessagesPanel';
 import { GRADE_LABELS } from '../../data/grades';
 import { getSubjectName } from '../../data/subjects';
 import { analyzeClassResults } from '../../utils/varkScoring';
@@ -96,6 +97,7 @@ export default function AdminDashboardPage() {
         <button type="button" className={tab === 'overview' ? 'active' : ''} onClick={() => setTab('overview')}>تحليل عام</button>
         <button type="button" className={tab === 'classes' ? 'active' : ''} onClick={() => setTab('classes')}>الصفوف والشعب</button>
         <button type="button" className={tab === 'teachers' ? 'active' : ''} onClick={() => setTab('teachers')}>المعلمون</button>
+        <button type="button" className={tab === 'messages' ? 'active' : ''} onClick={() => setTab('messages')}>✉️ المراسلات</button>
         <button type="button" className={tab === 'results' ? 'active' : ''} onClick={() => setTab('results')}>نتائج الاختبار</button>
         <button type="button" className={tab === 'subjects' ? 'active' : ''} onClick={() => setTab('subjects')}>المواد</button>
         <button type="button" className={tab === 'roster' ? 'active' : ''} onClick={() => setTab('roster')}>رفع القوائم</button>
@@ -136,6 +138,14 @@ export default function AdminDashboardPage() {
 
       {tab === 'teachers' && (
         <AdminTeachersPanel teachers={data.teachers} onRefresh={refresh} />
+      )}
+
+      {tab === 'messages' && (
+        <div className="card">
+          <h3>✉️ مراسلة المعلمين</h3>
+          <p className="muted">الوارد · الصادر · الرد · حذف من عند التنظيم والمعلم</p>
+          <AdminMessagesPanel teachers={data.teachers} />
+        </div>
       )}
 
       {tab === 'results' && (

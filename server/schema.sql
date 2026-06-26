@@ -48,3 +48,21 @@ CREATE INDEX IF NOT EXISTS idx_submissions_submitted_at ON submissions(submitted
 CREATE INDEX IF NOT EXISTS idx_submissions_profile_type ON submissions(profile_type);
 CREATE INDEX IF NOT EXISTS idx_students_grade_section ON students(grade, section);
 CREATE INDEX IF NOT EXISTS idx_teacher_assignments_teacher ON teacher_assignments(teacher_id);
+
+CREATE TABLE IF NOT EXISTS messages (
+  id TEXT PRIMARY KEY,
+  thread_id TEXT NOT NULL,
+  parent_id TEXT,
+  sender_type TEXT NOT NULL,
+  teacher_id TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  body TEXT NOT NULL,
+  read_by_admin_at TEXT,
+  read_by_teacher_at TEXT,
+  admin_deleted_at TEXT,
+  teacher_deleted_at TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_messages_teacher ON messages(teacher_id);
+CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(thread_id);

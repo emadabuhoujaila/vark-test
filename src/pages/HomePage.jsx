@@ -37,7 +37,7 @@ export default function HomePage() {
         <Link to="/teacher" className="card portal-card teacher-portal">
           <span className="portal-icon">👨‍🏫</span>
           <h2>بوابة المعلم</h2>
-          <p>تسجيل دخول أو حساب جديد — متابعة طلاب شعبك</p>
+          <p>تسجيل الدخول بالبريد وكلمة المرور — متابعة طلاب شعبك</p>
           <span className="portal-cta">دخول المعلم →</span>
         </Link>
 

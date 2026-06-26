@@ -129,6 +129,10 @@ export default function AdminTeachersPanel({ teachers, onRefresh }) {
 
   async function handleAdd(e) {
     e.preventDefault();
+    if (!form.assignments.length) {
+      setError('حدد مادة وصف وشعبة واحدة على الأقل');
+      return;
+    }
     setLoading(true);
     setError('');
     try {

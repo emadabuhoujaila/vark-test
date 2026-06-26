@@ -32,6 +32,18 @@ import {
   replaceRoster,
   deleteSubmissionById,
   getSubjectAvailability,
+  createMessage,
+  getMessageById,
+  getThreadMessages,
+  listAdminInbox,
+  listAdminOutbox,
+  listTeacherInbox,
+  listTeacherOutbox,
+  markMessageReadByAdmin,
+  markMessageReadByTeacher,
+  deleteMessageForAdmin,
+  deleteMessageForTeacher,
+  createPasswordResetRequest,
 } from './db.js';
 import { parseRosterExcel } from './rosterParser.js';
 
@@ -143,22 +155,20 @@ app.get('/api/subjects/availability', async (req, res) => {
 });
 
 // ─── Teacher auth ───
-app.post('/api/auth/teacher/register', async (req, res) => {
+app.post('/api/auth/teacher/forgot-password', async (req, res) => {
   try {
-    const { email, password, fullName } = req.body;
-    if (!email?.trim() || !password || password.length < 6) {
-      return res.status(400).json({ error: 'البريد وكلمة المرور (6 أحرف+) مطلوبان' });
+    const { email } = req.body;
+    if (!email?.trim()) {
+      return res.status(400).json({ error: 'أدخل البريد الإلكتروني' });
     }
-    const existing = await findTeacherByEmail(email);
-    if (existing) return res.status(409).json({ error: 'البريد مسجل مسبقًا' });
-
-    const passwordHash = await hashPassword(password);
-    const teacher = await createTeacher({ email, passwordHash, fullName });
-    const token = signTeacherToken(teacher);
-    res.status(201).json({ token, teacher: { id: teacher.id, email: teacher.email, fullName: teacher.fullName } });
+    await createPasswordResetRequest(email);
+    res.json({
+      ok: true,
+      message: 'تم إرسال طلبك إلى التنظيم. سيتواصل معك قريبًا.',
+    });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'فشل التسجيل' });
+    res.status(500).json({ error: 'فشل إرسال الطلب' });
   }
 });
 
@@ -192,31 +202,95 @@ app.get('/api/auth/teacher/me', requireTeacher, async (req, res) => {
   }
 });
 
-app.put('/api/auth/teacher/assignments', requireTeacher, async (req, res) => {
-  try {
-    const { assignments } = req.body;
-    if (!Array.isArray(assignments) || !assignments.length) {
-      return res.status(400).json({ error: 'اختر مادة وصف وشعبة واحدة على الأقل' });
-    }
-    const cleaned = assignments.map((a) => ({
-      subject: a.subject,
-      grade: Number(a.grade),
-      section: Number(a.section),
-    }));
-    await setTeacherAssignments(req.teacher.id, cleaned);
-    res.json({ ok: true, count: cleaned.length });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'فشل حفظ الاختيارات' });
-  }
-});
-
 app.get('/api/teacher/dashboard', requireTeacher, async (req, res) => {
   try {
     res.json(await getTeacherDashboard(req.teacher.id));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'فشل تحميل لوحة المعلم' });
+  }
+});
+
+// ─── Teacher messages ───
+app.get('/api/teacher/messages/inbox', requireTeacher, async (req, res) => {
+  try {
+    res.json(await listTeacherInbox(req.teacher.id));
+  } catch (err) {
+    res.status(500).json({ error: 'فشل تحميل الوارد' });
+  }
+});
+
+app.get('/api/teacher/messages/outbox', requireTeacher, async (req, res) => {
+  try {
+    res.json(await listTeacherOutbox(req.teacher.id));
+  } catch (err) {
+    res.status(500).json({ error: 'فشل تحميل الصادر' });
+  }
+});
+
+app.get('/api/teacher/messages/:id', requireTeacher, async (req, res) => {
+  try {
+    const msg = await getMessageById(req.params.id);
+    if (!msg || msg.teacherId !== req.teacher.id) {
+      return res.status(404).json({ error: 'الرسالة غير موجودة' });
+    }
+    await markMessageReadByTeacher(req.params.id, req.teacher.id);
+    const thread = await getThreadMessages(msg.threadId);
+    res.json({ message: msg, thread });
+  } catch (err) {
+    res.status(500).json({ error: 'فشل تحميل الرسالة' });
+  }
+});
+
+app.post('/api/teacher/messages', requireTeacher, async (req, res) => {
+  try {
+    const { subject, body } = req.body;
+    if (!subject?.trim() || !body?.trim()) {
+      return res.status(400).json({ error: 'الموضوع والنص مطلوبان' });
+    }
+    const msg = await createMessage({
+      senderType: 'teacher',
+      teacherId: req.teacher.id,
+      subject: subject.trim(),
+      body: body.trim(),
+    });
+    res.status(201).json(msg);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'فشل إرسال الرسالة' });
+  }
+});
+
+app.post('/api/teacher/messages/:id/reply', requireTeacher, async (req, res) => {
+  try {
+    const parent = await getMessageById(req.params.id);
+    if (!parent || parent.teacherId !== req.teacher.id) {
+      return res.status(404).json({ error: 'الرسالة غير موجودة' });
+    }
+    const { body } = req.body;
+    if (!body?.trim()) return res.status(400).json({ error: 'نص الرد مطلوب' });
+    const msg = await createMessage({
+      threadId: parent.threadId,
+      parentId: parent.id,
+      senderType: 'teacher',
+      teacherId: req.teacher.id,
+      subject: `رد: ${parent.subject}`,
+      body: body.trim(),
+    });
+    res.status(201).json(msg);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'فشل إرسال الرد' });
+  }
+});
+
+app.delete('/api/teacher/messages/:id', requireTeacher, async (req, res) => {
+  try {
+    const ok = await deleteMessageForTeacher(req.params.id, req.teacher.id);
+    if (!ok) return res.status(404).json({ error: 'الرسالة غير موجودة' });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'فشل حذف الرسالة' });
   }
 });
 
@@ -375,6 +449,88 @@ app.delete('/api/admin/submissions/:id', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'فشل حذف النتيجة' });
+  }
+});
+
+// ─── Admin messages ───
+app.get('/api/admin/messages/inbox', requireAdmin, async (_req, res) => {
+  try {
+    res.json(await listAdminInbox());
+  } catch (err) {
+    res.status(500).json({ error: 'فشل تحميل الوارد' });
+  }
+});
+
+app.get('/api/admin/messages/outbox', requireAdmin, async (_req, res) => {
+  try {
+    res.json(await listAdminOutbox());
+  } catch (err) {
+    res.status(500).json({ error: 'فشل تحميل الصادر' });
+  }
+});
+
+app.get('/api/admin/messages/:id', requireAdmin, async (req, res) => {
+  try {
+    const msg = await getMessageById(req.params.id);
+    if (!msg) return res.status(404).json({ error: 'الرسالة غير موجودة' });
+    await markMessageReadByAdmin(req.params.id);
+    const thread = await getThreadMessages(msg.threadId);
+    res.json({ message: msg, thread });
+  } catch (err) {
+    res.status(500).json({ error: 'فشل تحميل الرسالة' });
+  }
+});
+
+app.post('/api/admin/messages', requireAdmin, async (req, res) => {
+  try {
+    const { teacherId, subject, body } = req.body;
+    if (!teacherId || !subject?.trim() || !body?.trim()) {
+      return res.status(400).json({ error: 'المعلم والموضوع والنص مطلوبان' });
+    }
+    const teacher = await findTeacherById(teacherId);
+    if (!teacher) return res.status(404).json({ error: 'المعلم غير موجود' });
+    const msg = await createMessage({
+      senderType: 'admin',
+      teacherId,
+      subject: subject.trim(),
+      body: body.trim(),
+    });
+    res.status(201).json(msg);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'فشل إرسال الرسالة' });
+  }
+});
+
+app.post('/api/admin/messages/:id/reply', requireAdmin, async (req, res) => {
+  try {
+    const parent = await getMessageById(req.params.id);
+    if (!parent) return res.status(404).json({ error: 'الرسالة غير موجودة' });
+    const { body } = req.body;
+    if (!body?.trim()) return res.status(400).json({ error: 'نص الرد مطلوب' });
+    const msg = await createMessage({
+      threadId: parent.threadId,
+      parentId: parent.id,
+      senderType: 'admin',
+      teacherId: parent.teacherId,
+      subject: `رد: ${parent.subject}`,
+      body: body.trim(),
+    });
+    res.status(201).json(msg);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'فشل إرسال الرد' });
+  }
+});
+
+app.delete('/api/admin/messages/:id', requireAdmin, async (req, res) => {
+  try {
+    const msg = await getMessageById(req.params.id);
+    if (!msg) return res.status(404).json({ error: 'الرسالة غير موجودة' });
+    await deleteMessageForAdmin(req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'فشل حذف الرسالة' });
   }
 });
 

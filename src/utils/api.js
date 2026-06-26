@@ -40,17 +40,22 @@ export const saveSubmission = (data) =>
   request('/submissions', { method: 'POST', body: JSON.stringify(data) });
 
 // Teacher
-export const teacherRegister = (data) =>
-  request('/auth/teacher/register', { method: 'POST', body: JSON.stringify(data) });
 export const teacherLogin = (data) =>
   request('/auth/teacher/login', { method: 'POST', body: JSON.stringify(data) });
+export const teacherForgotPassword = (email) =>
+  request('/auth/teacher/forgot-password', { method: 'POST', body: JSON.stringify({ email }) });
 export const getTeacherMe = () => request('/auth/teacher/me', {}, 'teacherToken');
-export const saveTeacherAssignments = (assignments) =>
-  request('/auth/teacher/assignments', {
-    method: 'PUT',
-    body: JSON.stringify({ assignments }),
-  }, 'teacherToken');
 export const getTeacherDashboard = () => request('/teacher/dashboard', {}, 'teacherToken');
+
+export const teacherGetMessagesInbox = () => request('/teacher/messages/inbox', {}, 'teacherToken');
+export const teacherGetMessagesOutbox = () => request('/teacher/messages/outbox', {}, 'teacherToken');
+export const teacherGetMessage = (id) => request(`/teacher/messages/${id}`, {}, 'teacherToken');
+export const teacherSendMessage = (data) =>
+  request('/teacher/messages', { method: 'POST', body: JSON.stringify(data) }, 'teacherToken');
+export const teacherReplyMessage = (id, body) =>
+  request(`/teacher/messages/${id}/reply`, { method: 'POST', body: JSON.stringify({ body }) }, 'teacherToken');
+export const teacherDeleteMessage = (id) =>
+  request(`/teacher/messages/${id}`, { method: 'DELETE' }, 'teacherToken');
 
 export function saveTeacherToken(token) {
   localStorage.setItem('teacherToken', token);
@@ -109,3 +114,13 @@ export const adminDeleteTeacher = (id) =>
 
 export const adminDeleteSubmission = (id) =>
   request(`/admin/submissions/${id}`, { method: 'DELETE' }, 'adminToken');
+
+export const adminGetMessagesInbox = () => request('/admin/messages/inbox', {}, 'adminToken');
+export const adminGetMessagesOutbox = () => request('/admin/messages/outbox', {}, 'adminToken');
+export const adminGetMessage = (id) => request(`/admin/messages/${id}`, {}, 'adminToken');
+export const adminSendMessage = (data) =>
+  request('/admin/messages', { method: 'POST', body: JSON.stringify(data) }, 'adminToken');
+export const adminReplyMessage = (id, body) =>
+  request(`/admin/messages/${id}/reply`, { method: 'POST', body: JSON.stringify({ body }) }, 'adminToken');
+export const adminDeleteMessage = (id) =>
+  request(`/admin/messages/${id}`, { method: 'DELETE' }, 'adminToken');
