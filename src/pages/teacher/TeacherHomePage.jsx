@@ -7,6 +7,7 @@ import {
   getTeacherMe,
   clearTeacherAuth,
   isTeacherLoggedIn,
+  teacherDeleteSubmission,
 } from '../../utils/api';
 import { StatCard } from '../../components/UI';
 import SectionAnalysisPanel from '../../components/SectionAnalysisPanel';
@@ -20,20 +21,36 @@ export default function TeacherHomePage() {
   const [activeGroup, setActiveGroup] = useState(0);
   const [view, setView] = useState('students');
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const [deleteError, setDeleteError] = useState('');
+
+  function loadDashboard() {
+    return Promise.all([getTeacherMe(), getTeacherDashboard()])
+      .then(([me, dash]) => {
+        setTeacher(me.teacher);
+        setGroups(dash.groups || []);
+      });
+  }
 
   useEffect(() => {
     if (!isTeacherLoggedIn()) {
       navigate('/teacher');
       return;
     }
-    Promise.all([getTeacherMe(), getTeacherDashboard()])
-      .then(([me, dash]) => {
-        setTeacher(me.teacher);
-        setGroups(dash.groups || []);
-      })
+    loadDashboard()
       .catch(() => navigate('/teacher'))
       .finally(() => setLoading(false));
   }, [navigate]);
+
+  async function handleDeleteSubmission(submissionId, name) {
+    if (!window.confirm(`حذف اختبار ${name}؟ سيتمكن الطالب من إعادة الاختبار.`)) return;
+    setDeleteError('');
+    try {
+      await teacherDeleteSubmission(submissionId);
+      await loadDashboard();
+    } catch (err) {
+      setDeleteError(err.message);
+    }
+  }
 
   function logout() {
     clearTeacherAuth();
@@ -98,9 +115,10 @@ export default function TeacherHomePage() {
               <h3>
                 {getSubjectIcon(g.subject)} {getSubjectName(g.subject)} — {g.className}
               </h3>
-              <p className="muted hint-click">اضغط على أي طالب لعرض تحليله التفصيلي</p>
+              <p className="muted hint-click">اضغط على أي طالب لعرض تحليله — يمكن حذف الاختبار لإتاحة إعادته</p>
+              {deleteError && <p className="error-msg">{deleteError}</p>}
               <div className="table-wrap">
-                <table className="results-table roster-status-table clickable-table">
+                <table className="results-table roster-status-table">
                   <thead>
                     <tr>
                       <th>#</th>
@@ -108,17 +126,25 @@ export default function TeacherHomePage() {
                       <th>رقم الطالب</th>
                       <th>حالة الاختبار</th>
                       <th>النمط</th>
+                      <th>إجراء</th>
                     </tr>
                   </thead>
                   <tbody>
                     {g.students.map((s, i) => (
                       <tr
                         key={s.studentNumber + s.nameAr}
-                        className={`${s.completed ? 'completed-row' : ''} clickable-row`}
-                        onClick={() => setSelectedStudent(s)}
+                        className={`${s.completed ? 'completed-row' : ''}`}
                       >
                         <td>{i + 1}</td>
-                        <td><strong>{s.nameAr}</strong></td>
+                        <td>
+                          <button
+                            type="button"
+                            className="student-name-btn"
+                            onClick={() => setSelectedStudent(s)}
+                          >
+                            <strong>{s.nameAr}</strong>
+                          </button>
+                        </td>
                         <td>{s.studentNumber || '—'}</td>
                         <td>
                           {s.completed
@@ -129,6 +155,17 @@ export default function TeacherHomePage() {
                           {s.profileLabel && s.completed
                             ? <span className="done-badge">{s.profileLabel}</span>
                             : '—'}
+                        </td>
+                        <td>
+                          {s.submissionId && (
+                            <button
+                              type="button"
+                              className="btn btn-danger btn-sm"
+                              onClick={() => handleDeleteSubmission(s.submissionId, s.nameAr)}
+                            >
+                              حذف الاختبار
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}

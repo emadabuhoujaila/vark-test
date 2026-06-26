@@ -9,6 +9,9 @@ import { SUBJECTS } from '../subjects.js';
 /** المواد التي لها بنك أسئلة جاهز */
 export const SUBJECTS_WITH_QUESTIONS = ['science', 'math', 'arabic', 'english', 'islamic', 'social'];
 
+export const QUESTION_COUNT = 16;
+export const TEST_DURATION_MS = 45 * 60 * 1000;
+
 const QUESTION_BANKS = {
   science: SCIENCE_QUESTIONS,
   math: MATH_QUESTIONS,

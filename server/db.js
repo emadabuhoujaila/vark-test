@@ -29,6 +29,10 @@ function rowToSubmission(row) {
     profileLabel: row.profile_label,
     profileType: row.profile_type,
     submittedAt: row.submitted_at,
+    timedOut: Boolean(row.timed_out),
+    answeredCount: row.answered_count ?? (typeof row.answers === 'string'
+      ? JSON.parse(row.answers).length
+      : row.answers?.length ?? 0),
   };
 }
 
@@ -82,6 +86,7 @@ export async function getSubmissionById(id) {
 export async function createSubmission(data) {
   const id = randomUUID();
   const submittedAt = new Date().toISOString();
+  const answeredCount = data.answeredCount ?? data.answers?.length ?? 0;
   const payload = [
     id,
     data.studentName,
@@ -95,20 +100,22 @@ export async function createSubmission(data) {
     data.profileLabel,
     data.profileType,
     submittedAt,
+    data.timedOut ? 1 : 0,
+    answeredCount,
   ];
 
   if (usePostgres) {
     await pool.query(
       `INSERT INTO submissions
-       (id, student_name, class_name, student_number, subject, answers, scores, percentages, dominant_styles, profile_label, profile_type, submitted_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+       (id, student_name, class_name, student_number, subject, answers, scores, percentages, dominant_styles, profile_label, profile_type, submitted_at, timed_out, answered_count)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
       payload
     );
   } else {
     sqlite.prepare(
       `INSERT INTO submissions
-       (id, student_name, class_name, student_number, subject, answers, scores, percentages, dominant_styles, profile_label, profile_type, submitted_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
+       (id, student_name, class_name, student_number, subject, answers, scores, percentages, dominant_styles, profile_label, profile_type, submitted_at, timed_out, answered_count)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`
     ).run(...payload);
   }
 
@@ -116,7 +123,30 @@ export async function createSubmission(data) {
     id,
     submittedAt,
     ...data,
+    answeredCount,
   };
+}
+
+export async function findExistingSubmission({ studentName, studentNumber, className, subject }) {
+  const normalizedSubject = subject || 'science';
+  const allSubs = await getAllSubmissions();
+  return allSubs.find((s) => {
+    if (s.className !== className) return false;
+    const subSubject = s.subject || 'science';
+    if (subSubject !== normalizedSubject) return false;
+    if (studentNumber && s.studentNumber === studentNumber) return true;
+    return s.studentName === studentName;
+  }) || null;
+}
+
+export async function teacherCanDeleteSubmission(teacherId, submission) {
+  const assignments = await getTeacherAssignments(teacherId);
+  const { formatClassName } = await import('./constants.js');
+  const subSubject = submission.subject || 'science';
+  return assignments.some((a) => {
+    const className = formatClassName(a.grade, a.section);
+    return className === submission.className && a.subject === subSubject;
+  });
 }
 
 export async function deleteSubmissionById(id) {
@@ -215,6 +245,8 @@ async function runMigrations() {
       created_at TEXT NOT NULL)`);
     await pool.query('CREATE INDEX IF NOT EXISTS idx_messages_teacher ON messages(teacher_id)');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(thread_id)');
+    await pool.query(`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS timed_out INTEGER DEFAULT 0`);
+    await pool.query(`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS answered_count INTEGER`);
     return;
   }
 
@@ -239,6 +271,8 @@ async function runMigrations() {
     CREATE INDEX IF NOT EXISTS idx_messages_teacher ON messages(teacher_id);
     CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(thread_id);
   `);
+  try { sqlite.exec('ALTER TABLE submissions ADD COLUMN timed_out INTEGER DEFAULT 0'); } catch { /* ok */ }
+  try { sqlite.exec('ALTER TABLE submissions ADD COLUMN answered_count INTEGER'); } catch { /* ok */ }
 }
 
 export async function getRosterMeta() {

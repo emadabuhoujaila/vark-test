@@ -78,6 +78,9 @@ export const teacherReplyMessage = (id, body) =>
 export const teacherDeleteMessage = (id) =>
   request(`/teacher/messages/${id}`, { method: 'DELETE' }, 'teacherToken');
 
+export const teacherDeleteSubmission = (id) =>
+  request(`/teacher/submissions/${id}`, { method: 'DELETE' }, 'teacherToken');
+
 export function saveTeacherToken(token) {
   localStorage.setItem('teacherToken', token);
 }

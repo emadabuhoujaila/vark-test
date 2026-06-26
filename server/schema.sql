@@ -10,7 +10,9 @@ CREATE TABLE IF NOT EXISTS submissions (
   profile_label TEXT,
   profile_type TEXT,
   submitted_at TEXT NOT NULL,
-  subject TEXT
+  subject TEXT,
+  timed_out INTEGER DEFAULT 0,
+  answered_count INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS students (

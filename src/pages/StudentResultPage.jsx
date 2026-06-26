@@ -40,11 +40,17 @@ export default function StudentResultPage() {
 
   const dominant = submission.dominantStyles || getDominantStyles(submission.scores);
   const profileLabel = submission.profileLabel || getProfileLabel(dominant);
+  const questionTotal = submission.answeredCount || submission.answers?.length || 16;
 
   return (
     <div className="page result-page">
       <div className="card result-header">
         <span className="result-tag">نتيجة الاختبار</span>
+        {submission.timedOut && (
+          <p className="warn-box timed-out-note">
+            ⏱️ انتهى وقت الاختبار (45 دقيقة) — النتيجة محسوبة من {questionTotal} إجابة فقط
+          </p>
+        )}
         <h1>{submission.studentName}</h1>
         <p className="muted">
           {submission.className}
@@ -68,7 +74,7 @@ export default function StudentResultPage() {
 
       <div className="card">
         <h3>توزيع درجاتك</h3>
-        <ScoreBars scores={submission.scores} percentages={submission.percentages} />
+        <ScoreBars scores={submission.scores} percentages={submission.percentages} questionTotal={questionTotal} />
       </div>
 
       <div className="tips-grid">
@@ -87,8 +93,7 @@ export default function StudentResultPage() {
       </div>
 
       <div className="result-actions">
-        <Link to="/test" className="btn btn-secondary">اختبار جديد</Link>
-        <Link to="/" className="btn btn-primary">الرئيسية</Link>
+        <Link to="/test" className="btn btn-secondary">العودة للاختبار</Link>
       </div>
     </div>
   );

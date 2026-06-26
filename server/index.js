@@ -32,6 +32,8 @@ import {
   replaceRoster,
   deleteSubmissionById,
   getSubjectAvailability,
+  findExistingSubmission,
+  teacherCanDeleteSubmission,
   createMessage,
   getMessageById,
   getThreadMessages,
@@ -46,6 +48,11 @@ import {
   createPasswordResetRequest,
 } from './db.js';
 import { parseRosterExcel } from './rosterParser.js';
+import {
+  QUESTION_COUNT,
+  buildSubmissionResult,
+  isValidAnswerStyle,
+} from './scoring.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -85,20 +92,43 @@ app.get('/api/submissions/:id', async (req, res) => {
 app.post('/api/submissions', async (req, res) => {
   try {
     const body = req.body;
-    if (!body.studentName?.trim() || !body.answers?.length) {
+    if (!body.studentName?.trim() || !Array.isArray(body.answers)) {
       return res.status(400).json({ error: 'بيانات غير مكتملة' });
     }
+
+    const timedOut = Boolean(body.timedOut);
+    const answers = body.answers.filter((a) => isValidAnswerStyle(a));
+
+    if (!timedOut && answers.length !== QUESTION_COUNT) {
+      return res.status(400).json({ error: 'يجب الإجابة على جميع الأسئلة قبل التسليم' });
+    }
+    if (answers.length === 0) {
+      return res.status(400).json({ error: 'لم تُجب على أي سؤال' });
+    }
+
+    const className = body.className?.trim() || '';
+    const subject = body.subject?.trim() || 'science';
+    const existing = await findExistingSubmission({
+      studentName: body.studentName.trim(),
+      studentNumber: body.studentNumber?.trim() || '',
+      className,
+      subject,
+    });
+    if (existing) {
+      return res.status(409).json({
+        error: 'أنجزت هذا الاختبار مسبقًا. تواصل مع معلمك أو التنظيم لإعادة الاختبار.',
+        submissionId: existing.id,
+      });
+    }
+
+    const result = buildSubmissionResult(answers, { timedOut });
     const entry = await createSubmission({
       studentName: body.studentName.trim(),
-      className: body.className?.trim() || '',
+      className,
       studentNumber: body.studentNumber?.trim() || '',
-      subject: body.subject?.trim() || 'science',
-      answers: body.answers,
-      scores: body.scores,
-      percentages: body.percentages,
-      dominantStyles: body.dominantStyles,
-      profileLabel: body.profileLabel,
-      profileType: body.profileType,
+      subject,
+      answers,
+      ...result,
     });
     res.status(201).json(entry);
   } catch (err) {
@@ -208,6 +238,20 @@ app.get('/api/teacher/dashboard', requireTeacher, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'فشل تحميل لوحة المعلم' });
+  }
+});
+
+app.delete('/api/teacher/submissions/:id', requireTeacher, async (req, res) => {
+  try {
+    const submission = await getSubmissionById(req.params.id);
+    if (!submission) return res.status(404).json({ error: 'النتيجة غير موجودة' });
+    const allowed = await teacherCanDeleteSubmission(req.teacher.id, submission);
+    if (!allowed) return res.status(403).json({ error: 'لا تملك صلاحية حذف هذه النتيجة' });
+    await deleteSubmissionById(req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'فشل حذف النتيجة' });
   }
 });
 

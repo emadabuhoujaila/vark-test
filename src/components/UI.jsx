@@ -30,14 +30,14 @@ export function ProgressBar({ current, total }) {
   );
 }
 
-export function ScoreBars({ scores, percentages }) {
+export function ScoreBars({ scores, percentages, questionTotal = 16 }) {
   return (
     <div className="score-bars">
       {Object.entries(scores).map(([style, score]) => (
         <div key={style} className="score-row">
           <div className="score-label">
             <StyleBadge style={style} />
-            <span>{score}/16 ({percentages[style]}%)</span>
+            <span>{score}/{questionTotal} ({percentages[style]}%)</span>
           </div>
           <div className="score-track">
             <div

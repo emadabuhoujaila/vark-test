@@ -635,6 +635,51 @@ a {
   transition: width 0.3s ease;
 }
 
+.quiz-timer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.65rem 1rem;
+  margin-bottom: 1rem;
+  background: #ecfdf5;
+  border: 2px solid #99f6e4;
+  border-radius: var(--radius);
+  font-weight: 700;
+}
+
+.quiz-timer.warning {
+  background: #fff7ed;
+  border-color: #fdba74;
+  color: #c2410c;
+  animation: timerPulse 1s ease-in-out infinite;
+}
+
+@keyframes timerPulse {
+  50% { opacity: 0.85; }
+}
+
+.quiz-time-note {
+  margin-bottom: 1rem;
+}
+
+.timed-out-note {
+  margin: 0.75rem 0 0;
+}
+
+.student-name-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  text-align: right;
+}
+
+.student-name-btn:hover strong {
+  color: var(--primary);
+}
+
 .quiz-card h2 {
   font-size: 1.25rem;
   line-height: 1.5;
