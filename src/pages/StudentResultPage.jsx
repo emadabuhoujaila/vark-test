@@ -4,7 +4,6 @@ import { getSubmission } from '../utils/api';
 import { STYLE_DESCRIPTIONS, TEACHING_TIPS } from '../data/varkQuestions';
 import { StyleBadge, ScoreBars, EmptyState } from '../components/UI';
 import { getDominantStyles, getProfileLabel } from '../utils/varkScoring';
-import { getSubjectName, getSubjectIcon } from '../data/subjects';
 
 export default function StudentResultPage() {
   const { id } = useParams();
@@ -44,14 +43,9 @@ export default function StudentResultPage() {
   return (
     <div className="page result-page">
       <div className="card result-header">
-        <span className="result-tag">نتيجة الاختبار</span>
+        <span className="result-tag">نتيجة التقييم</span>
         <h1>{submission.studentName}</h1>
-        <p className="muted">
-          {submission.className}
-          {submission.subject && (
-            <> · {getSubjectIcon(submission.subject)} {getSubjectName(submission.subject)}</>
-          )}
-        </p>
+        <p className="muted">{submission.className}</p>
         <div className="dominant-profile">
           <p>نمطك السائد:</p>
           <div className="dominant-badges">
@@ -87,7 +81,7 @@ export default function StudentResultPage() {
       </div>
 
       <div className="result-actions">
-        <Link to="/test" className="btn btn-secondary">اختبار جديد</Link>
+        <Link to="/test" className="btn btn-secondary">تقييم جديد</Link>
         <Link to="/" className="btn btn-primary">الرئيسية</Link>
       </div>
     </div>

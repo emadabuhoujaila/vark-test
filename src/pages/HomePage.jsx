@@ -8,10 +8,10 @@ export default function HomePage() {
     <div className="page home-page">
       <section className="hero card">
         <div className="hero-content">
-          <span className="hero-tag">اختبار VARK — أنماط التعلم</span>
-          <h1>منصة مدرسة واحدة — ثلاث بوابات</h1>
+          <span className="hero-tag">تقييم أنماط التعلم VARK</span>
+          <h1>تعرّف على أسلوب تعلّمك</h1>
           <p>
-            الطلاب يجرون الاختبار، المعلمون يتابعون شعبهم، والإدارة تنظّم القوائم والتحليل العام.
+            نشاط تفاعلي من {15} سؤالاً — للطلاب. المعلم يتابع النتائج ويصدّر تحليل كل شعبة.
           </p>
         </div>
         <div className="hero-visual">
@@ -26,26 +26,19 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="portals-grid">
+      <section className="portals-grid two-col">
         <Link to="/test" className="card portal-card student-portal">
           <span className="portal-icon">🎓</span>
           <h2>بوابة الطالب</h2>
-          <p>اختبار VARK — اختر صفك وشعبتك واسمك ثم المادة</p>
-          <span className="portal-cta">ابدأ الاختبار →</span>
+          <p>ابدأ تقييم أنماط التعلم — 15 سؤالاً</p>
+          <span className="portal-cta">ابدأ التقييم →</span>
         </Link>
 
         <Link to="/teacher" className="card portal-card teacher-portal">
           <span className="portal-icon">👨‍🏫</span>
           <h2>بوابة المعلم</h2>
-          <p>تسجيل دخول أو حساب جديد — متابعة طلاب شعبك</p>
+          <p>متابعة الطلاب · رفع القوائم · تصدير التحليل</p>
           <span className="portal-cta">دخول المعلم →</span>
-        </Link>
-
-        <Link to="/admin" className="card portal-card admin-portal-card">
-          <span className="portal-icon">🏛️</span>
-          <h2>صفحة التنظيم</h2>
-          <p>رفع القوائم · تحليل المدرسة · سجل المعلمين</p>
-          <span className="portal-cta">دخول الإدارة →</span>
         </Link>
       </section>
     </div>

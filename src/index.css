@@ -1550,12 +1550,21 @@ a {
   font-size: 1.25rem;
 }
 
+.portals-grid.two-col {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.section-actions {
+  margin-bottom: 1rem;
+}
+
 @media (max-width: 768px) {
   .hero,
   .info-grid,
   .dashboard-grid,
   .individual-layout,
   .portals-grid,
+  .portals-grid.two-col,
   .charts-grid,
   .style-count-grid,
   .score-grid-mini,

@@ -52,11 +52,12 @@ export function analyzeClassResults(submissions) {
   });
 
   const total = submissions.length || 1;
+  const maxQ = submissions[0]?.answers?.length || 15;
   const averageScores = Object.fromEntries(
     STYLES.map((s) => [s, +(styleTotals[s] / total).toFixed(1)])
   );
   const averagePercentages = Object.fromEntries(
-    STYLES.map((s) => [s, Math.round((averageScores[s] / 16) * 100)])
+    STYLES.map((s) => [s, Math.round((averageScores[s] / maxQ) * 100)])
   );
 
   const dominantClassStyle = STYLES.reduce((a, b) =>
