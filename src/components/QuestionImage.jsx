@@ -47,6 +47,18 @@ const SCENE_VISUALS = {
   flashcards: { emoji: '🃏', label: 'بطاقات', color: '#6366f1' },
   video: { emoji: '🎬', label: 'فيديو', color: '#0d9488' },
   'english-general': { emoji: '🔤', label: 'إنجليزي', color: '#4f46e5' },
+  quran: { emoji: '📿', label: 'القرآن', color: '#059669' },
+  hadith: { emoji: '☪️', label: 'الحديث', color: '#0d9488' },
+  prayer: { emoji: '🕌', label: 'الصلاة', color: '#0891b2' },
+  'prophet-story': { emoji: '🌙', label: 'السيرة', color: '#6366f1' },
+  pillars: { emoji: '🕋', label: 'الأركان', color: '#b45309' },
+  values: { emoji: '💚', label: 'القيم', color: '#059669' },
+  worship: { emoji: '🤲', label: 'العبادات', color: '#7c3aed' },
+  fiqh: { emoji: '📜', label: 'الفقه', color: '#0369a1' },
+  charity: { emoji: '🤝', label: 'التعاون', color: '#ea580c' },
+  discussion: { emoji: '💬', label: 'مناقشة', color: '#2563eb' },
+  memorization: { emoji: '🧠', label: 'الحفظ', color: '#64748b' },
+  'islamic-general': { emoji: '🕌', label: 'إسلامية', color: '#0d9488' },
 };
 
 export default function QuestionImage({ scene, questionId, small }) {
