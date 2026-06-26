@@ -43,6 +43,104 @@ a {
   flex-direction: column;
 }
 
+/* School identity banner */
+.school-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1.5rem;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  border-bottom: 3px solid #CE1126;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  position: relative;
+  overflow: hidden;
+}
+
+.school-banner::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent,
+    transparent 40px,
+    rgba(206, 17, 38, 0.03) 40px,
+    rgba(206, 17, 38, 0.03) 41px
+  );
+  pointer-events: none;
+}
+
+.school-banner-flags {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.school-banner-flags-end {
+  flex-direction: row-reverse;
+}
+
+.uae-flag-svg {
+  width: 56px;
+  height: auto;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.uae-flag-sm {
+  width: 36px;
+  opacity: 0.92;
+}
+
+.school-banner-center {
+  flex: 1;
+  text-align: center;
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+
+.school-ministry {
+  margin: 0 0 0.2rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #334155;
+  letter-spacing: 0.01em;
+}
+
+.school-name {
+  margin: 0 0 0.35rem;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.4;
+}
+
+.uae-pride {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  background: linear-gradient(
+    90deg,
+    #CE1126 0%,
+    #CE1126 18%,
+    #00732F 38%,
+    #00732F 52%,
+    #1e293b 72%,
+    #000000 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 1px 0 rgba(255, 255, 255, 0.8));
+}
+
 .header {
   background: linear-gradient(135deg, #0f766e, #134e4a);
   color: white;
@@ -1773,6 +1871,28 @@ a {
 
   .messages-layout {
     grid-template-columns: 1fr;
+  }
+
+  .school-banner {
+    flex-direction: column;
+    padding: 0.75rem 1rem;
+    gap: 0.5rem;
+  }
+
+  .school-banner-flags {
+    justify-content: center;
+  }
+
+  .school-banner-flags-end {
+    display: none;
+  }
+
+  .school-name {
+    font-size: 0.92rem;
+  }
+
+  .uae-pride {
+    font-size: 1rem;
   }
 }
 

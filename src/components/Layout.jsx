@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
+import SchoolBanner from './SchoolBanner';
 
 function getPortal(pathname) {
   if (pathname.startsWith('/admin')) return 'admin';
@@ -25,6 +26,7 @@ export default function Layout({ children }) {
 
   return (
     <div className={`app portal-${portal}`}>
+      <SchoolBanner />
       <header className="header">
         <div className="header-inner">
           <Link to={meta.home} className="brand">
