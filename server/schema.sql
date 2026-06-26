@@ -9,7 +9,8 @@ CREATE TABLE IF NOT EXISTS submissions (
   dominant_styles TEXT NOT NULL,
   profile_label TEXT,
   profile_type TEXT,
-  submitted_at TEXT NOT NULL
+  submitted_at TEXT NOT NULL,
+  subject TEXT
 );
 
 CREATE TABLE IF NOT EXISTS students (

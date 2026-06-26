@@ -18,6 +18,8 @@ function rowToSubmission(row) {
     id: row.id,
     studentName: row.student_name,
     className: row.class_name || '',
+    studentNumber: row.student_number || '',
+    subject: row.subject || '',
     answers: typeof row.answers === 'string' ? JSON.parse(row.answers) : row.answers,
     scores: typeof row.scores === 'string' ? JSON.parse(row.scores) : row.scores,
     percentages: typeof row.percentages === 'string' ? JSON.parse(row.percentages) : row.percentages,
@@ -85,6 +87,7 @@ export async function createSubmission(data) {
     data.studentName,
     data.className || '',
     data.studentNumber || '',
+    data.subject || '',
     JSON.stringify(data.answers),
     JSON.stringify(data.scores),
     JSON.stringify(data.percentages),
@@ -97,15 +100,15 @@ export async function createSubmission(data) {
   if (usePostgres) {
     await pool.query(
       `INSERT INTO submissions
-       (id, student_name, class_name, student_number, answers, scores, percentages, dominant_styles, profile_label, profile_type, submitted_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+       (id, student_name, class_name, student_number, subject, answers, scores, percentages, dominant_styles, profile_label, profile_type, submitted_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
       payload
     );
   } else {
     sqlite.prepare(
       `INSERT INTO submissions
-       (id, student_name, class_name, student_number, answers, scores, percentages, dominant_styles, profile_label, profile_type, submitted_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?)`
+       (id, student_name, class_name, student_number, subject, answers, scores, percentages, dominant_styles, profile_label, profile_type, submitted_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
     ).run(...payload);
   }
 
@@ -193,6 +196,7 @@ async function runMigrations() {
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_students_grade_section ON students(grade, section)`);
     await pool.query(`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS student_number TEXT`);
+    await pool.query(`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS subject TEXT`);
     await pool.query(teacherTables.replace(/TEXT PRIMARY KEY/g, 'TEXT PRIMARY KEY').replace(/UNIQUE\(teacher_id/g, 'UNIQUE(teacher_id'));
     // PostgreSQL needs separate statements
     await pool.query(`CREATE TABLE IF NOT EXISTS teachers (
@@ -212,6 +216,7 @@ async function runMigrations() {
     )
   `);
   try { sqlite.exec('ALTER TABLE submissions ADD COLUMN student_number TEXT'); } catch { /* ok */ }
+  try { sqlite.exec('ALTER TABLE submissions ADD COLUMN subject TEXT'); } catch { /* ok */ }
   sqlite.exec(teacherTables);
 }
 
@@ -509,10 +514,63 @@ export async function getAllTeachersWithAssignments() {
   return result;
 }
 
-function matchSubmission(student, submission, className) {
+function matchSubmission(student, submission, className, subject) {
   if (submission.className !== className) return false;
+  if (subject) {
+    const subSubject = submission.subject || 'science';
+    if (subSubject !== subject) return false;
+  }
   if (student.studentNumber && submission.studentNumber === student.studentNumber) return true;
   return submission.studentName === student.nameAr;
+}
+
+export async function getSubjectAvailability(grade, section, studentNumber, studentName) {
+  const { SUBJECT_IDS, SUBJECT_NAMES, SUBJECTS_WITH_QUESTIONS, formatClassName } = await import('./constants.js');
+  const className = formatClassName(Number(grade), Number(section));
+
+  let assigned;
+  if (usePostgres) {
+    const { rows } = await pool.query(
+      'SELECT DISTINCT subject FROM teacher_assignments WHERE grade = $1 AND section = $2',
+      [Number(grade), Number(section)]
+    );
+    assigned = new Set(rows.map((r) => r.subject));
+  } else {
+    assigned = new Set(
+      sqlite.prepare(
+        'SELECT DISTINCT subject FROM teacher_assignments WHERE grade = ? AND section = ?'
+      ).all(Number(grade), Number(section)).map((r) => r.subject)
+    );
+  }
+
+  const allSubs = await getAllSubmissions();
+  const classSubs = allSubs.filter((s) => s.className === className);
+
+  return SUBJECT_IDS.map((id) => {
+    const hasTeacher = assigned.has(id);
+    const hasQuestions = SUBJECTS_WITH_QUESTIONS.includes(id);
+    let status = 'waiting';
+    if (hasTeacher && hasQuestions) status = 'open';
+    else if (hasTeacher && !hasQuestions) status = 'soon';
+    else status = 'waiting';
+
+    const existing = classSubs.find((s) => {
+      const subSubject = s.subject || 'science';
+      if (subSubject !== id) return false;
+      if (studentNumber && s.studentNumber === studentNumber) return true;
+      if (studentName && s.studentName === studentName) return true;
+      return false;
+    });
+
+    if (existing) status = 'done';
+
+    return {
+      id,
+      name: SUBJECT_NAMES[id],
+      status,
+      submissionId: existing?.id || null,
+    };
+  });
 }
 
 export async function getTeacherDashboard(teacherId) {
@@ -525,7 +583,7 @@ export async function getTeacherDashboard(teacherId) {
     const students = await getRosterStudents(a.grade, a.section);
     const className = formatClassName(a.grade, a.section);
     const studentsWithStatus = students.map((st) => {
-      const sub = allSubmissions.find((s) => matchSubmission(st, s, className));
+      const sub = allSubmissions.find((s) => matchSubmission(st, s, className, a.subject));
       return {
         ...st,
         completed: Boolean(sub),
@@ -544,7 +602,9 @@ export async function getTeacherDashboard(teacherId) {
           : null,
       };
     });
-    const sectionSubmissions = allSubmissions.filter((s) => s.className === className);
+    const sectionSubmissions = allSubmissions.filter(
+      (s) => s.className === className && (s.subject || 'science') === a.subject
+    );
     groups.push({
       subject: a.subject,
       grade: a.grade,

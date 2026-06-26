@@ -145,10 +145,11 @@ export default function AdminDashboardPage() {
           <div className="table-wrap">
             <table className="results-table">
               <thead>
-                <tr>
-                  <th>الاسم</th>
-                  <th>الصف</th>
-                  <th>النمط</th>
+                  <tr>
+                    <th>الاسم</th>
+                    <th>الصف</th>
+                    <th>المادة</th>
+                    <th>النمط</th>
                   <th>التاريخ</th>
                   <th>حذف</th>
                 </tr>
@@ -158,6 +159,7 @@ export default function AdminDashboardPage() {
                   <tr key={s.id}>
                     <td><strong>{s.studentName}</strong></td>
                     <td>{s.className}</td>
+                    <td>{getSubjectName(s.subject || 'science')}</td>
                     <td>{s.profileLabel}</td>
                     <td>{new Date(s.submittedAt).toLocaleString('ar-SA')}</td>
                     <td>

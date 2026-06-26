@@ -29,6 +29,12 @@ export const getRosterGrades = () => request('/roster/grades');
 export const getRosterSections = (grade) => request(`/roster/sections?grade=${grade}`);
 export const getRosterStudents = (grade, section) =>
   request(`/roster/students?grade=${grade}&section=${section}`);
+export const getSubjectAvailability = (grade, section, studentNumber, studentName) => {
+  const params = new URLSearchParams({ grade, section });
+  if (studentNumber) params.set('studentNumber', studentNumber);
+  if (studentName) params.set('studentName', studentName);
+  return request(`/subjects/availability?${params}`);
+};
 export const getSubmission = (id) => request(`/submissions/${id}`);
 export const saveSubmission = (data) =>
   request('/submissions', { method: 'POST', body: JSON.stringify(data) });

@@ -30,7 +30,7 @@ export default function HomePage() {
         <Link to="/test" className="card portal-card student-portal">
           <span className="portal-icon">🎓</span>
           <h2>بوابة الطالب</h2>
-          <p>اختبار VARK — اختر صفك وشعبتك واسمك</p>
+          <p>اختبار VARK — اختر صفك وشعبتك واسمك ثم المادة</p>
           <span className="portal-cta">ابدأ الاختبار →</span>
         </Link>
 

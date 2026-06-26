@@ -4,6 +4,7 @@ import { getSubmission } from '../utils/api';
 import { STYLE_DESCRIPTIONS, TEACHING_TIPS } from '../data/varkQuestions';
 import { StyleBadge, ScoreBars, EmptyState } from '../components/UI';
 import { getDominantStyles, getProfileLabel } from '../utils/varkScoring';
+import { getSubjectName, getSubjectIcon } from '../data/subjects';
 
 export default function StudentResultPage() {
   const { id } = useParams();
@@ -45,7 +46,12 @@ export default function StudentResultPage() {
       <div className="card result-header">
         <span className="result-tag">نتيجة الاختبار</span>
         <h1>{submission.studentName}</h1>
-        <p className="muted">{submission.className}</p>
+        <p className="muted">
+          {submission.className}
+          {submission.subject && (
+            <> · {getSubjectIcon(submission.subject)} {getSubjectName(submission.subject)}</>
+          )}
+        </p>
         <div className="dominant-profile">
           <p>نمطك السائد:</p>
           <div className="dominant-badges">

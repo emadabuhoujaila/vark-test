@@ -1,8 +1,13 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { VARK_QUESTIONS } from '../data/varkQuestions';
+import { Link, useNavigate } from 'react-router-dom';
 import { GRADE_LABELS, formatClassName } from '../data/grades';
+import { getSubjectIcon, getSubjectName } from '../data/subjects';
+import {
+  getQuestionsForSubject,
+  SUBJECT_STATUS_MESSAGES,
+} from '../data/questions/index';
 import { ProgressBar, EmptyState } from '../components/UI';
+import QuestionImage from '../components/QuestionImage';
 import {
   calculateScores,
   getPercentages,
@@ -16,6 +21,7 @@ import {
   getRosterGrades,
   getRosterSections,
   getRosterStudents,
+  getSubjectAvailability,
 } from '../utils/api';
 
 export default function StudentTestPage() {
@@ -25,19 +31,23 @@ export default function StudentTestPage() {
   const [section, setSection] = useState('');
   const [studentName, setStudentName] = useState('');
   const [studentNumber, setStudentNumber] = useState('');
+  const [subject, setSubject] = useState('');
+  const [subjects, setSubjects] = useState([]);
   const [grades, setGrades] = useState([]);
   const [sections, setSections] = useState([]);
   const [students, setStudents] = useState([]);
   const [rosterReady, setRosterReady] = useState(true);
   const [loadingRoster, setLoadingRoster] = useState(true);
+  const [loadingSubjects, setLoadingSubjects] = useState(false);
   const [currentQ, setCurrentQ] = useState(0);
   const [answers, setAnswers] = useState([]);
   const [selected, setSelected] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  const question = VARK_QUESTIONS[currentQ];
-  const total = VARK_QUESTIONS.length;
+  const questions = subject ? getQuestionsForSubject(subject) : [];
+  const question = questions[currentQ];
+  const total = questions.length;
   const className = grade && section ? formatClassName(Number(grade), Number(section)) : '';
 
   useEffect(() => {
@@ -86,10 +96,34 @@ export default function StudentTestPage() {
     setStudentNumber(found?.studentNumber || '');
   }
 
-  function startTest(e) {
+  async function goToSubjects(e) {
     e.preventDefault();
     if (!grade || !section || !studentName) return;
-    setStep('quiz');
+    setLoadingSubjects(true);
+    setError('');
+    try {
+      const list = await getSubjectAvailability(grade, section, studentNumber, studentName);
+      setSubjects(list);
+      setStep('subject');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoadingSubjects(false);
+    }
+  }
+
+  function handleSubjectPick(sub) {
+    if (sub.status === 'open') {
+      setSubject(sub.id);
+      setCurrentQ(0);
+      setAnswers([]);
+      setSelected(null);
+      setStep('quiz');
+      return;
+    }
+    if (sub.status === 'done' && sub.submissionId) {
+      navigate(`/result/${sub.submissionId}`);
+    }
   }
 
   async function nextQuestion() {
@@ -124,6 +158,7 @@ export default function StudentTestPage() {
         studentName,
         className,
         studentNumber,
+        subject,
         answers: finalAnswers,
         scores,
         percentages,
@@ -150,7 +185,7 @@ export default function StudentTestPage() {
     return (
       <div className="page">
         <EmptyState
-          message="لم يرفع المعلم قائمة الأسماء بعد. اطلب من معلمك رفع ملف Excel من لوحة المعلم."
+          message="لم تُرفع قائمة الأسماء بعد. تواصل مع إدارة التنظيم."
           actionLabel="العودة للرئيسية"
           actionTo="/"
         />
@@ -163,24 +198,17 @@ export default function StudentTestPage() {
       <div className="page">
         <div className="card form-card">
           <h1>اختر اسمك</h1>
-          <p className="muted">اختر الصف ثم الشعبة ثم اسمك من القائمة.</p>
-          <form onSubmit={startTest} className="student-form">
+          <p className="muted">اختر الصف ثم الشعبة ثم اسمك — بعدها تختار المادة.</p>
+          <form onSubmit={goToSubjects} className="student-form">
             <label>
               الصف
-              <select
-                value={grade}
-                onChange={(e) => setGrade(e.target.value)}
-                required
-              >
+              <select value={grade} onChange={(e) => setGrade(e.target.value)} required>
                 <option value="">— اختر الصف —</option>
                 {grades.map((g) => (
-                  <option key={g} value={g}>
-                    {GRADE_LABELS[g] || `الصف ${g}`}
-                  </option>
+                  <option key={g} value={g}>{GRADE_LABELS[g] || `الصف ${g}`}</option>
                 ))}
               </select>
             </label>
-
             <label>
               الشعبة
               <select
@@ -195,7 +223,6 @@ export default function StudentTestPage() {
                 ))}
               </select>
             </label>
-
             <label>
               اسم الطالب
               <select
@@ -212,15 +239,60 @@ export default function StudentTestPage() {
                 ))}
               </select>
             </label>
-
+            {error && <p className="error-msg">{error}</p>}
             <button
               type="submit"
               className="btn btn-primary btn-lg"
-              disabled={!studentName}
+              disabled={!studentName || loadingSubjects}
             >
-              ابدأ الاختبار ({total} سؤال)
+              {loadingSubjects ? 'جاري...' : 'اختيار المادة →'}
             </button>
           </form>
+        </div>
+      </div>
+    );
+  }
+
+  if (step === 'subject') {
+    return (
+      <div className="page">
+        <div className="card form-card">
+          <h1>اختر المادة</h1>
+          <p className="muted">
+            {studentName} — {className}
+          </p>
+          <div className="subject-pick-grid">
+            {subjects.map((sub) => {
+              const isOpen = sub.status === 'open';
+              const isDone = sub.status === 'done';
+              const isSoon = sub.status === 'soon';
+              const msg = SUBJECT_STATUS_MESSAGES[sub.status];
+              return (
+                <button
+                  key={sub.id}
+                  type="button"
+                  className={`subject-pick-card status-${sub.status}`}
+                  onClick={() => handleSubjectPick(sub)}
+                  disabled={sub.status === 'waiting' || sub.status === 'soon'}
+                >
+                  <span className="subject-pick-icon">{getSubjectIcon(sub.id)}</span>
+                  <strong>{getSubjectName(sub.id)}</strong>
+                  {isOpen && <span className="subject-pick-cta">ابدأ النشاط →</span>}
+                  {isDone && <span className="subject-pick-done">✅ أنجزت — عرض النتيجة</span>}
+                  {(sub.status === 'waiting' || isSoon) && (
+                    <span className="subject-pick-wait">{msg}</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => setStep('info')}
+          >
+            ← رجوع
+          </button>
         </div>
       </div>
     );
@@ -232,14 +304,22 @@ export default function StudentTestPage() {
 
       <div className="card quiz-card">
         <p className="quiz-student">
-          الطالب: <strong>{studentName}</strong> — {className}
+          {getSubjectIcon(subject)} <strong>{getSubjectName(subject)}</strong>
+          {' · '}
+          {studentName} — {className}
         </p>
-        <h2 className="quiz-question">{question.text}</h2>
+
+        {question && (
+          <>
+            <QuestionImage scene={question.scene} questionId={question.id} />
+            <h2 className="quiz-question">{question.text}</h2>
+          </>
+        )}
 
         {error && <p className="error-msg">{error}</p>}
 
         <div className="options-grid">
-          {question.options.map((opt, i) => (
+          {question?.options.map((opt, i) => (
             <button
               key={i}
               type="button"

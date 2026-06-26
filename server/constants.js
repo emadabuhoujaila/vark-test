@@ -1,5 +1,8 @@
 export const SUBJECT_IDS = ['science', 'math', 'arabic', 'english', 'islamic', 'social'];
 
+/** المواد التي لها بنك أسئلة جاهز — يُحدّث مع إضافة مواد جديدة */
+export const SUBJECTS_WITH_QUESTIONS = ['science'];
+
 export const SUBJECT_NAMES = {
   science: 'علوم',
   math: 'رياضيات',

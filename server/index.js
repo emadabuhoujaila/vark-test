@@ -31,6 +31,7 @@ import {
   getRosterStudents,
   replaceRoster,
   deleteSubmissionById,
+  getSubjectAvailability,
 } from './db.js';
 import { parseRosterExcel } from './rosterParser.js';
 
@@ -79,6 +80,7 @@ app.post('/api/submissions', async (req, res) => {
       studentName: body.studentName.trim(),
       className: body.className?.trim() || '',
       studentNumber: body.studentNumber?.trim() || '',
+      subject: body.subject?.trim() || 'science',
       answers: body.answers,
       scores: body.scores,
       percentages: body.percentages,
@@ -126,6 +128,17 @@ app.get('/api/roster/students', async (req, res) => {
     res.json(await getRosterStudents(grade, section));
   } catch (err) {
     res.status(500).json({ error: 'فشل تحميل الأسماء' });
+  }
+});
+
+app.get('/api/subjects/availability', async (req, res) => {
+  try {
+    const { grade, section, studentNumber, studentName } = req.query;
+    if (!grade || !section) return res.status(400).json({ error: 'حدد الصف والشعبة' });
+    res.json(await getSubjectAvailability(grade, section, studentNumber, studentName));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'فشل تحميل المواد' });
   }
 });
 
