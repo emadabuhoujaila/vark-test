@@ -4,22 +4,34 @@ import cors from 'cors';
 import multer from 'multer';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { signTeacherToken } from './auth.js';
-import { requireTeacher } from './middleware.js';
+import {
+  hashPassword,
+  comparePassword,
+  signTeacherToken,
+  signAdminToken,
+} from './auth.js';
+import { requireTeacher, requireAdmin } from './middleware.js';
 import {
   initDb,
   getSubmissionById,
   createSubmission,
-  verifyTeacherPin,
-  getSchoolOverview,
-  getTeacherFullDashboard,
-  getSectionExportCsv,
+  createTeacher,
+  findTeacherByEmail,
+  findTeacherById,
+  updateTeacher,
+  updateTeacherPassword,
+  deleteTeacher,
+  setTeacherAssignments,
+  getTeacherAssignments,
+  getTeacherDashboard,
+  getAdminOverview,
   getRosterMeta,
   getRosterGrades,
   getRosterSections,
   getRosterStudents,
   replaceRoster,
   deleteSubmissionById,
+  getSubjectAvailability,
 } from './db.js';
 import { parseRosterExcel } from './rosterParser.js';
 
@@ -27,6 +39,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3001;
 const isProd = process.env.NODE_ENV === 'production';
+const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'admin@school.ae').toLowerCase();
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin2024';
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -66,6 +80,7 @@ app.post('/api/submissions', async (req, res) => {
       studentName: body.studentName.trim(),
       className: body.className?.trim() || '',
       studentNumber: body.studentNumber?.trim() || '',
+      subject: body.subject?.trim() || 'science',
       answers: body.answers,
       scores: body.scores,
       percentages: body.percentages,
@@ -116,54 +131,119 @@ app.get('/api/roster/students', async (req, res) => {
   }
 });
 
-// ─── Teacher (PIN) ───
+app.get('/api/subjects/availability', async (req, res) => {
+  try {
+    const { grade, section, studentNumber, studentName } = req.query;
+    if (!grade || !section) return res.status(400).json({ error: 'حدد الصف والشعبة' });
+    res.json(await getSubjectAvailability(grade, section, studentNumber, studentName));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'فشل تحميل المواد' });
+  }
+});
+
+// ─── Teacher auth ───
+app.post('/api/auth/teacher/register', async (req, res) => {
+  try {
+    const { email, password, fullName } = req.body;
+    if (!email?.trim() || !password || password.length < 6) {
+      return res.status(400).json({ error: 'البريد وكلمة المرور (6 أحرف+) مطلوبان' });
+    }
+    const existing = await findTeacherByEmail(email);
+    if (existing) return res.status(409).json({ error: 'البريد مسجل مسبقًا' });
+
+    const passwordHash = await hashPassword(password);
+    const teacher = await createTeacher({ email, passwordHash, fullName });
+    const token = signTeacherToken(teacher);
+    res.status(201).json({ token, teacher: { id: teacher.id, email: teacher.email, fullName: teacher.fullName } });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'فشل التسجيل' });
+  }
+});
+
 app.post('/api/auth/teacher/login', async (req, res) => {
   try {
-    const { pin } = req.body;
-    if (!pin || !(await verifyTeacherPin(pin))) {
-      return res.status(401).json({ error: 'كلمة السر غير صحيحة' });
-    }
-    const token = signTeacherToken();
-    res.json({ token, ok: true });
+    const { email, password } = req.body;
+    const teacher = await findTeacherByEmail(email);
+    if (!teacher) return res.status(401).json({ error: 'البريد أو كلمة المرور غير صحيحة' });
+
+    const valid = await comparePassword(password, teacher.password_hash);
+    if (!valid) return res.status(401).json({ error: 'البريد أو كلمة المرور غير صحيحة' });
+
+    const token = signTeacherToken({ id: teacher.id, email: teacher.email });
+    res.json({
+      token,
+      teacher: { id: teacher.id, email: teacher.email, fullName: teacher.full_name || '' },
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'فشل تسجيل الدخول' });
   }
 });
 
-app.get('/api/teacher/overview', requireTeacher, async (_req, res) => {
+app.get('/api/auth/teacher/me', requireTeacher, async (req, res) => {
   try {
-    res.json(await getSchoolOverview());
+    const teacher = await findTeacherById(req.teacher.id);
+    const assignments = await getTeacherAssignments(req.teacher.id);
+    res.json({ teacher, assignments });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ error: 'فشل تحميل البيانات' });
   }
 });
 
-app.get('/api/teacher/dashboard', requireTeacher, async (_req, res) => {
+app.put('/api/auth/teacher/assignments', requireTeacher, async (req, res) => {
   try {
-    res.json(await getTeacherFullDashboard());
+    const { assignments } = req.body;
+    if (!Array.isArray(assignments) || !assignments.length) {
+      return res.status(400).json({ error: 'اختر مادة وصف وشعبة واحدة على الأقل' });
+    }
+    const cleaned = assignments.map((a) => ({
+      subject: a.subject,
+      grade: Number(a.grade),
+      section: Number(a.section),
+    }));
+    await setTeacherAssignments(req.teacher.id, cleaned);
+    res.json({ ok: true, count: cleaned.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'فشل حفظ الاختيارات' });
+  }
+});
+
+app.get('/api/teacher/dashboard', requireTeacher, async (req, res) => {
+  try {
+    res.json(await getTeacherDashboard(req.teacher.id));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'فشل تحميل لوحة المعلم' });
   }
 });
 
-app.get('/api/teacher/export', requireTeacher, async (req, res) => {
+// ─── Admin ───
+app.post('/api/auth/admin/login', async (req, res) => {
   try {
-    const { grade, section } = req.query;
-    if (!grade || !section) return res.status(400).json({ error: 'حدد الصف والشعبة' });
-    const { csv, filename } = await getSectionExportCsv(Number(grade), Number(section));
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.send(csv);
+    const { email, password } = req.body;
+    if (email?.trim().toLowerCase() !== ADMIN_EMAIL || password !== ADMIN_PASSWORD) {
+      return res.status(401).json({ error: 'بيانات الدخول غير صحيحة' });
+    }
+    const token = signAdminToken(ADMIN_EMAIL);
+    res.json({ token, email: ADMIN_EMAIL });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'فشل تصدير الملف' });
+    res.status(500).json({ error: 'فشل تسجيل الدخول' });
   }
 });
 
-app.post('/api/teacher/roster/upload', requireTeacher, upload.single('file'), async (req, res) => {
+app.get('/api/admin/overview', requireAdmin, async (_req, res) => {
+  try {
+    res.json(await getAdminOverview());
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'فشل تحميل البيانات' });
+  }
+});
+
+app.post('/api/admin/roster/upload', requireAdmin, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'اختر ملف Excel' });
     const students = parseRosterExcel(req.file.buffer);
@@ -178,7 +258,115 @@ app.post('/api/teacher/roster/upload', requireTeacher, upload.single('file'), as
   }
 });
 
-app.delete('/api/teacher/submissions/:id', requireTeacher, async (req, res) => {
+app.post('/api/admin/teachers', requireAdmin, async (req, res) => {
+  try {
+    const { email, password, fullName, assignments } = req.body;
+    if (!email?.trim() || !password || password.length < 6) {
+      return res.status(400).json({ error: 'البريد وكلمة المرور (6 أحرف+) مطلوبان' });
+    }
+    const existing = await findTeacherByEmail(email);
+    if (existing) return res.status(409).json({ error: 'البريد مسجل مسبقًا' });
+
+    const passwordHash = await hashPassword(password);
+    const teacher = await createTeacher({ email, passwordHash, fullName });
+    if (Array.isArray(assignments) && assignments.length) {
+      await setTeacherAssignments(teacher.id, assignments.map((a) => ({
+        subject: a.subject,
+        grade: Number(a.grade),
+        section: Number(a.section),
+      })));
+    }
+    const saved = await findTeacherById(teacher.id);
+    const teacherAssignments = await getTeacherAssignments(teacher.id);
+    res.status(201).json({
+      teacher: {
+        id: saved.id,
+        email: saved.email,
+        fullName: saved.full_name || '',
+        createdAt: saved.created_at,
+        assignments: teacherAssignments,
+      },
+      password,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'فشل إضافة المعلم' });
+  }
+});
+
+app.put('/api/admin/teachers/:id', requireAdmin, async (req, res) => {
+  try {
+    const teacher = await findTeacherById(req.params.id);
+    if (!teacher) return res.status(404).json({ error: 'المعلم غير موجود' });
+
+    const { email, fullName, assignments } = req.body;
+    if (email) {
+      const existing = await findTeacherByEmail(email);
+      if (existing && existing.id !== req.params.id) {
+        return res.status(409).json({ error: 'البريد مستخدم من معلم آخر' });
+      }
+    }
+
+    const updated = await updateTeacher(req.params.id, {
+      email: email || teacher.email,
+      fullName: fullName ?? teacher.full_name,
+    });
+
+    if (Array.isArray(assignments)) {
+      await setTeacherAssignments(req.params.id, assignments.map((a) => ({
+        subject: a.subject,
+        grade: Number(a.grade),
+        section: Number(a.section),
+      })));
+    }
+
+    const teacherAssignments = await getTeacherAssignments(req.params.id);
+    res.json({
+      teacher: {
+        id: updated.id,
+        email: updated.email,
+        fullName: updated.full_name || '',
+        createdAt: updated.created_at,
+        assignments: teacherAssignments,
+      },
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'فشل تحديث المعلم' });
+  }
+});
+
+app.put('/api/admin/teachers/:id/password', requireAdmin, async (req, res) => {
+  try {
+    const teacher = await findTeacherById(req.params.id);
+    if (!teacher) return res.status(404).json({ error: 'المعلم غير موجود' });
+
+    const { password } = req.body;
+    if (!password || password.length < 6) {
+      return res.status(400).json({ error: 'كلمة المرور 6 أحرف على الأقل' });
+    }
+
+    await updateTeacherPassword(req.params.id, await hashPassword(password));
+    res.json({ ok: true, password, message: 'تم تعيين كلمة المرور الجديدة' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'فشل تعيين كلمة المرور' });
+  }
+});
+
+app.delete('/api/admin/teachers/:id', requireAdmin, async (req, res) => {
+  try {
+    const teacher = await findTeacherById(req.params.id);
+    if (!teacher) return res.status(404).json({ error: 'المعلم غير موجود' });
+    await deleteTeacher(req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'فشل حذف المعلم' });
+  }
+});
+
+app.delete('/api/admin/submissions/:id', requireAdmin, async (req, res) => {
   try {
     const submission = await getSubmissionById(req.params.id);
     if (!submission) return res.status(404).json({ error: 'النتيجة غير موجودة' });

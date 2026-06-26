@@ -35,5 +35,5 @@ export const TEACHING_TIPS = {
   ],
 };
 
-/** @deprecated */ 
-export { GENERAL_QUESTIONS as VARK_QUESTIONS, QUESTION_COUNT } from './questions/general.js';
+/** @deprecated استخدم getQuestionsForSubject('science') من ./questions/index.js */
+export { SCIENCE_QUESTIONS as VARK_QUESTIONS } from './questions/science.js';

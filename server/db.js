@@ -87,7 +87,7 @@ export async function createSubmission(data) {
     data.studentName,
     data.className || '',
     data.studentNumber || '',
-    '',
+    data.subject || '',
     JSON.stringify(data.answers),
     JSON.stringify(data.scores),
     JSON.stringify(data.percentages),
@@ -514,140 +514,136 @@ export async function getAllTeachersWithAssignments() {
   return result;
 }
 
-function matchSubmission(student, submission, className) {
+function matchSubmission(student, submission, className, subject) {
   if (submission.className !== className) return false;
+  if (subject) {
+    const subSubject = submission.subject || 'science';
+    if (subSubject !== subject) return false;
+  }
   if (student.studentNumber && submission.studentNumber === student.studentNumber) return true;
   return submission.studentName === student.nameAr;
 }
 
-function enrichStudent(st, allSubmissions, className) {
-  const sub = allSubmissions.find((s) => matchSubmission(st, s, className));
-  return {
-    ...st,
-    completed: Boolean(sub),
-    submissionId: sub?.id || null,
-    profileLabel: sub?.profileLabel || null,
-    submission: sub
-      ? {
-          id: sub.id,
-          scores: sub.scores,
-          percentages: sub.percentages,
-          dominantStyles: sub.dominantStyles,
-          profileLabel: sub.profileLabel,
-          profileType: sub.profileType,
-          submittedAt: sub.submittedAt,
-        }
-      : null,
-  };
+export async function getSubjectAvailability(grade, section, studentNumber, studentName) {
+  const { SUBJECT_IDS, SUBJECT_NAMES, SUBJECTS_WITH_QUESTIONS, formatClassName } = await import('./constants.js');
+  const className = formatClassName(Number(grade), Number(section));
+
+  let assigned;
+  if (usePostgres) {
+    const { rows } = await pool.query(
+      'SELECT DISTINCT subject FROM teacher_assignments WHERE grade = $1 AND section = $2',
+      [Number(grade), Number(section)]
+    );
+    assigned = new Set(rows.map((r) => r.subject));
+  } else {
+    assigned = new Set(
+      sqlite.prepare(
+        'SELECT DISTINCT subject FROM teacher_assignments WHERE grade = ? AND section = ?'
+      ).all(Number(grade), Number(section)).map((r) => r.subject)
+    );
+  }
+
+  const allSubs = await getAllSubmissions();
+  const classSubs = allSubs.filter((s) => s.className === className);
+
+  return SUBJECT_IDS.map((id) => {
+    const hasTeacher = assigned.has(id);
+    const hasQuestions = SUBJECTS_WITH_QUESTIONS.includes(id);
+    let status = 'waiting';
+    if (hasTeacher && hasQuestions) status = 'open';
+    else if (hasTeacher && !hasQuestions) status = 'soon';
+    else status = 'waiting';
+
+    const existing = classSubs.find((s) => {
+      const subSubject = s.subject || 'science';
+      if (subSubject !== id) return false;
+      if (studentNumber && s.studentNumber === studentNumber) return true;
+      if (studentName && s.studentName === studentName) return true;
+      return false;
+    });
+
+    if (existing) status = 'done';
+
+    return {
+      id,
+      name: SUBJECT_NAMES[id],
+      status,
+      submissionId: existing?.id || null,
+    };
+  });
 }
 
-async function buildSectionGroup(grade, section, allSubmissions) {
+export async function getTeacherDashboard(teacherId) {
   const { formatClassName } = await import('./constants.js');
-  const students = await getRosterStudents(grade, section);
-  const className = formatClassName(grade, section);
-  const studentsWithStatus = students.map((st) => enrichStudent(st, allSubmissions, className));
-  const sectionSubmissions = allSubmissions.filter((s) => s.className === className);
-  return {
-    grade,
-    section,
-    className,
-    totalStudents: studentsWithStatus.length,
-    completedCount: studentsWithStatus.filter((s) => s.completed).length,
-    students: studentsWithStatus,
-    submissions: sectionSubmissions,
-  };
-}
-
-export async function getTeacherFullDashboard() {
-  const summary = await getRosterSummary();
+  const assignments = await getTeacherAssignments(teacherId);
   const allSubmissions = await getAllSubmissions();
   const groups = [];
-  for (const g of summary.grades) {
-    for (const { section } of g.sections) {
-      groups.push(await buildSectionGroup(g.grade, section, allSubmissions));
-    }
+
+  for (const a of assignments) {
+    const students = await getRosterStudents(a.grade, a.section);
+    const className = formatClassName(a.grade, a.section);
+    const studentsWithStatus = students.map((st) => {
+      const sub = allSubmissions.find((s) => matchSubmission(st, s, className, a.subject));
+      return {
+        ...st,
+        completed: Boolean(sub),
+        submissionId: sub?.id || null,
+        profileLabel: sub?.profileLabel || null,
+        submission: sub
+          ? {
+              id: sub.id,
+              scores: sub.scores,
+              percentages: sub.percentages,
+              dominantStyles: sub.dominantStyles,
+              profileLabel: sub.profileLabel,
+              profileType: sub.profileType,
+              submittedAt: sub.submittedAt,
+            }
+          : null,
+      };
+    });
+    const sectionSubmissions = allSubmissions.filter(
+      (s) => s.className === className && (s.subject || 'science') === a.subject
+    );
+    groups.push({
+      subject: a.subject,
+      grade: a.grade,
+      section: a.section,
+      className,
+      totalStudents: studentsWithStatus.length,
+      completedCount: studentsWithStatus.filter((s) => s.completed).length,
+      students: studentsWithStatus,
+      submissions: sectionSubmissions,
+    });
   }
   return { groups };
 }
 
-export async function getSchoolOverview() {
+export async function getAdminOverview() {
+  const { SUBJECT_IDS } = await import('./constants.js');
   const meta = await getRosterMeta();
   const summary = await getRosterSummary();
+  const teachers = await getAllTeachersWithAssignments();
   const submissions = await getAllSubmissions();
+
+  const registeredSubjects = new Set();
+  for (const t of teachers) {
+    for (const a of t.assignments) registeredSubjects.add(a.subject);
+  }
+
+  const subjectStatus = SUBJECT_IDS.map((id) => ({
+    id,
+    registered: registeredSubjects.has(id),
+    teacherCount: teachers.filter((t) => t.assignments.some((a) => a.subject === id)).length,
+  }));
+
   return {
     roster: meta,
     summary,
+    totalTeachers: teachers.length,
     totalSubmissions: submissions.length,
+    teachers,
+    subjectStatus,
     submissions,
   };
-}
-
-export async function getSectionExportCsv(grade, section) {
-  const { formatClassName, GRADE_LABELS } = await import('./constants.js');
-  const group = await buildSectionGroup(grade, section, await getAllSubmissions());
-  const label = GRADE_LABELS[grade] || `grade${grade}`;
-  const filename = `vark-${grade}-${section}.csv`;
-
-  const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const header = '\uFEFFم,الاسم,رقم الطالب,حالة التقييم,النمط السائد,V,A,R,K,بصري%,سمعي%,قرائي%,حركي%,التاريخ\n';
-
-  const rows = group.students.map((st, i) => {
-    const sub = st.submission;
-    if (sub) {
-      return [
-        i + 1,
-        esc(st.nameAr),
-        esc(st.studentNumber),
-        esc('أنجز'),
-        esc(sub.profileLabel),
-        sub.scores.V,
-        sub.scores.A,
-        sub.scores.R,
-        sub.scores.K,
-        sub.percentages.V,
-        sub.percentages.A,
-        sub.percentages.R,
-        sub.percentages.K,
-        esc(new Date(sub.submittedAt).toLocaleString('ar-SA')),
-      ].join(',');
-    }
-    return [
-      i + 1,
-      esc(st.nameAr),
-      esc(st.studentNumber),
-      esc('لم ينجز'),
-      '', '', '', '', '', '', '', '', '',
-    ].join(',');
-  });
-
-  const completed = group.completedCount;
-  const total = group.totalStudents;
-  const rate = total ? Math.round((completed / total) * 100) : 0;
-  const analysisLines = [
-    '',
-    esc('── تحليل الشعبة ──'),
-    esc(`الصف: ${group.className}`),
-    esc(`إجمالي الطلاب: ${total}`),
-    esc(`أنجزوا التقييم: ${completed}`),
-    esc(`نسبة الإنجاز: ${rate}%`),
-  ];
-
-  if (group.submissions.length) {
-    const counts = { V: 0, A: 0, R: 0, K: 0, MULTI: 0 };
-    for (const s of group.submissions) {
-      const t = s.profileType || 'MULTI';
-      counts[t] = (counts[t] || 0) + 1;
-    }
-    analysisLines.push(esc(`بصري: ${counts.V || 0} | سمعي: ${counts.A || 0} | قرائي: ${counts.R || 0} | حركي: ${counts.K || 0} | متعدد: ${counts.MULTI || 0}`));
-  }
-
-  return { csv: header + rows.join('\n') + '\n' + analysisLines.join('\n'), filename };
-}
-
-export async function getTeacherDashboard() {
-  return getTeacherFullDashboard();
-}
-
-export async function getAdminOverview() {
-  return getSchoolOverview();
 }
