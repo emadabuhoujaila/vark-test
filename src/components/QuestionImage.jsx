@@ -27,6 +27,18 @@ const SCENE_VISUALS = {
   measure: { emoji: '📏', label: 'القياس', color: '#64748b' },
   homework: { emoji: '📓', label: 'الواجب', color: '#6366f1' },
   'math-general': { emoji: '📐', label: 'رياضيات', color: '#2563eb' },
+  reading: { emoji: '📖', label: 'القراءة', color: '#059669' },
+  grammar: { emoji: '✍️', label: 'النحو', color: '#7c3aed' },
+  spelling: { emoji: '🔤', label: 'الإملاء', color: '#dc2626' },
+  writing: { emoji: '📝', label: 'التعبير', color: '#2563eb' },
+  poetry: { emoji: '🎭', label: 'الشعر', color: '#b45309' },
+  vocabulary: { emoji: '📚', label: 'المفردات', color: '#0891b2' },
+  analysis: { emoji: '🔍', label: 'التحليل', color: '#6366f1' },
+  dictation: { emoji: '✏️', label: 'الإملاء', color: '#64748b' },
+  rhetoric: { emoji: '💬', label: 'البلاغة', color: '#0d9488' },
+  summary: { emoji: '📋', label: 'التلخيص', color: '#0369a1' },
+  debate: { emoji: '🗣️', label: 'المناقشة', color: '#ea580c' },
+  'arabic-general': { emoji: '📖', label: 'لغة عربية', color: '#059669' },
 };
 
 export default function QuestionImage({ scene, questionId, small }) {
