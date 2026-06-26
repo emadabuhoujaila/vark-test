@@ -295,6 +295,18 @@ app.delete('/api/teacher/messages/:id', requireTeacher, async (req, res) => {
 });
 
 // ─── Admin ───
+app.post('/api/auth/home-gate', async (req, res) => {
+  try {
+    const { password } = req.body;
+    if (password !== ADMIN_PASSWORD) {
+      return res.status(401).json({ error: 'كلمة المرور غير صحيحة' });
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'فشل التحقق' });
+  }
+});
+
 app.post('/api/auth/admin/login', async (req, res) => {
   try {
     const { email, password } = req.body;

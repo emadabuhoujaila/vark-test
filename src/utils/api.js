@@ -39,6 +39,27 @@ export const getSubmission = (id) => request(`/submissions/${id}`);
 export const saveSubmission = (data) =>
   request('/submissions', { method: 'POST', body: JSON.stringify(data) });
 
+export const verifyHomeGate = (password) =>
+  request('/auth/home-gate', { method: 'POST', body: JSON.stringify({ password }) });
+
+const HOME_ACCESS_KEY = 'homeAccessGranted';
+
+export function saveHomeAccess() {
+  sessionStorage.setItem(HOME_ACCESS_KEY, '1');
+}
+
+export function hasHomeAccess() {
+  return sessionStorage.getItem(HOME_ACCESS_KEY) === '1';
+}
+
+export function clearHomeAccess() {
+  sessionStorage.removeItem(HOME_ACCESS_KEY);
+}
+
+export function canAccessHome() {
+  return hasHomeAccess() || Boolean(getToken('adminToken'));
+}
+
 // Teacher
 export const teacherLogin = (data) =>
   request('/auth/teacher/login', { method: 'POST', body: JSON.stringify(data) });

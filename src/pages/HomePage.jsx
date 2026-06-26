@@ -1,8 +1,64 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { STYLE_LABELS } from '../data/varkQuestions';
+import { verifyHomeGate, saveHomeAccess, canAccessHome } from '../utils/api';
+
+function HomeGateForm({ onUnlock }) {
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    try {
+      await verifyHomeGate(password);
+      saveHomeAccess();
+      onUnlock();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="page">
+      <div className="card form-card portal-card">
+        <span className="portal-icon">🔒</span>
+        <h1>الصفحة الرئيسية</h1>
+        <p className="muted">الدخول محصور — أدخل كلمة مرور التنظيم</p>
+        <form onSubmit={handleSubmit} className="student-form">
+          <label>
+            كلمة مرور التنظيم
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              dir="ltr"
+              autoComplete="current-password"
+            />
+          </label>
+          {error && <p className="error-msg">{error}</p>}
+          <button type="submit" className="btn btn-primary btn-lg" disabled={loading}>
+            {loading ? 'جاري التحقق...' : 'دخول'}
+          </button>
+        </form>
+        <Link to="/teacher" className="back-link">← بوابة المعلم</Link>
+      </div>
+    </div>
+  );
+}
 
 export default function HomePage() {
+  const [unlocked, setUnlocked] = useState(() => canAccessHome());
   const styles = Object.entries(STYLE_LABELS);
+
+  if (!unlocked) {
+    return <HomeGateForm onUnlock={() => setUnlocked(true)} />;
+  }
 
   return (
     <div className="page home-page">

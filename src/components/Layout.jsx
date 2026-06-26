@@ -9,7 +9,7 @@ function getPortal(pathname) {
 
 const PORTAL_META = {
   student: { home: '/test', subtitle: 'بوابة الطالب' },
-  teacher: { home: '/teacher', subtitle: 'طالب · معلم' },
+  teacher: { home: '/teacher', subtitle: 'بوابة المعلم' },
   admin: { home: '/admin', subtitle: 'طالب · معلم · تنظيم' },
   home: { home: '/', subtitle: 'طالب · معلم · تنظيم' },
 };
@@ -19,8 +19,8 @@ export default function Layout({ children }) {
   const portal = getPortal(pathname);
   const meta = PORTAL_META[portal];
 
-  const showStudent = portal === 'teacher' || portal === 'admin' || portal === 'home';
-  const showTeacher = portal === 'teacher' || portal === 'admin' || portal === 'home';
+  const showStudent = portal === 'admin' || portal === 'home';
+  const showTeacher = portal === 'admin' || portal === 'home';
   const showAdmin = portal === 'admin' || portal === 'home';
 
   return (

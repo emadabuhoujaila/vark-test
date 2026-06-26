@@ -89,7 +89,7 @@ export default function TeacherAuthPage() {
           </form>
         )}
 
-        <Link to="/" className="back-link">← الرئيسية</Link>
+        <Link to="/teacher" className="back-link">← بوابة المعلم</Link>
       </div>
     </div>
   );
