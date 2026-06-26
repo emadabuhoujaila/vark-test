@@ -39,6 +39,14 @@ const SCENE_VISUALS = {
   summary: { emoji: '📋', label: 'التلخيص', color: '#0369a1' },
   debate: { emoji: '🗣️', label: 'المناقشة', color: '#ea580c' },
   'arabic-general': { emoji: '📖', label: 'لغة عربية', color: '#059669' },
+  listening: { emoji: '🎧', label: 'الاستماع', color: '#7c3aed' },
+  dialogue: { emoji: '💬', label: 'حوار', color: '#0891b2' },
+  'english-grammar': { emoji: '📝', label: 'قواعد', color: '#2563eb' },
+  pronunciation: { emoji: '🗣️', label: 'النطق', color: '#ea580c' },
+  speaking: { emoji: '🎤', label: 'محادثة', color: '#dc2626' },
+  flashcards: { emoji: '🃏', label: 'بطاقات', color: '#6366f1' },
+  video: { emoji: '🎬', label: 'فيديو', color: '#0d9488' },
+  'english-general': { emoji: '🔤', label: 'إنجليزي', color: '#4f46e5' },
 };
 
 export default function QuestionImage({ scene, questionId, small }) {
