@@ -1,11 +1,13 @@
 import { SCIENCE_QUESTIONS } from './science.js';
+import { MATH_QUESTIONS } from './math.js';
 import { SUBJECTS } from '../subjects.js';
 
 /** المواد التي لها بنك أسئلة جاهز — أضف مادة جديدة هنا تدريجياً */
-export const SUBJECTS_WITH_QUESTIONS = ['science'];
+export const SUBJECTS_WITH_QUESTIONS = ['science', 'math'];
 
 const QUESTION_BANKS = {
   science: SCIENCE_QUESTIONS,
+  math: MATH_QUESTIONS,
 };
 
 export function hasQuestionsForSubject(subjectId) {

@@ -15,6 +15,18 @@ const SCENE_VISUALS = {
   materials: { emoji: '🪨', label: 'المواد', color: '#57534e' },
   help: { emoji: '💡', label: 'طلب مساعدة', color: '#7c3aed' },
   general: { emoji: '🧬', label: 'علوم', color: '#0d9488' },
+  fractions: { emoji: '🍕', label: 'الكسور', color: '#ea580c' },
+  geometry: { emoji: '📐', label: 'الأشكال', color: '#2563eb' },
+  equation: { emoji: '⚖️', label: 'المعادلات', color: '#7c3aed' },
+  'word-problem': { emoji: '🛒', label: 'مسألة كلامية', color: '#059669' },
+  graph: { emoji: '📊', label: 'الإحداثيات', color: '#0891b2' },
+  percent: { emoji: '💯', label: 'النسبة المئوية', color: '#dc2626' },
+  angles: { emoji: '📏', label: 'الزوايا', color: '#4f46e5' },
+  multiplication: { emoji: '✖️', label: 'الضرب', color: '#b45309' },
+  pattern: { emoji: '🔢', label: 'الأنماط', color: '#0d9488' },
+  measure: { emoji: '📏', label: 'القياس', color: '#64748b' },
+  homework: { emoji: '📓', label: 'الواجب', color: '#6366f1' },
+  'math-general': { emoji: '📐', label: 'رياضيات', color: '#2563eb' },
 };
 
 export default function QuestionImage({ scene, questionId, small }) {
