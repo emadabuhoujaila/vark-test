@@ -2,7 +2,6 @@ import { Link, useLocation } from 'react-router-dom';
 
 export default function Layout({ children }) {
   const { pathname } = useLocation();
-  const isTeacher = pathname.startsWith('/teacher');
 
   return (
     <div className="app">
@@ -12,22 +11,19 @@ export default function Layout({ children }) {
             <span className="brand-icon">🧬</span>
             <div>
               <strong>اختبار VARK</strong>
-              <small>أنماط التعلم — الصف السابع · علوم</small>
+              <small>طالب · معلم · تنظيم</small>
             </div>
           </Link>
           <nav className="nav">
-            <Link to="/test" className={pathname === '/test' ? 'active' : ''}>
-              اختبار الطالب
-            </Link>
-            <Link to="/teacher" className={isTeacher ? 'active' : ''}>
-              لوحة المعلم
-            </Link>
+            <Link to="/test" className={pathname === '/test' ? 'active' : ''}>الطالب</Link>
+            <Link to="/teacher" className={pathname.startsWith('/teacher') ? 'active' : ''}>المعلم</Link>
+            <Link to="/admin" className={pathname.startsWith('/admin') ? 'active' : ''}>التنظيم</Link>
           </nav>
         </div>
       </header>
       <main className="main">{children}</main>
       <footer className="footer">
-        <p>أداة لتحديد أنماط التعلم (بصري · سمعي · قرائي · حركي) — للاستخدام التعليمي</p>
+        <p>منصة أنماط التعلم VARK — للاستخدام التعليمي</p>
       </footer>
     </div>
   );

@@ -162,6 +162,24 @@ export async function verifyTeacherPin(pin) {
 }
 
 async function runMigrations() {
+  const teacherTables = `
+    CREATE TABLE IF NOT EXISTS teachers (
+      id TEXT PRIMARY KEY,
+      email TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      full_name TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS teacher_assignments (
+      id TEXT PRIMARY KEY,
+      teacher_id TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      grade INTEGER NOT NULL,
+      section INTEGER NOT NULL,
+      UNIQUE(teacher_id, subject, grade, section)
+    );
+  `;
+
   if (usePostgres) {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS students (
@@ -173,30 +191,28 @@ async function runMigrations() {
         name_en TEXT
       )
     `);
-    await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_students_grade_section ON students(grade, section)
-    `);
-    await pool.query(`
-      ALTER TABLE submissions ADD COLUMN IF NOT EXISTS student_number TEXT
-    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_students_grade_section ON students(grade, section)`);
+    await pool.query(`ALTER TABLE submissions ADD COLUMN IF NOT EXISTS student_number TEXT`);
+    await pool.query(teacherTables.replace(/TEXT PRIMARY KEY/g, 'TEXT PRIMARY KEY').replace(/UNIQUE\(teacher_id/g, 'UNIQUE(teacher_id'));
+    // PostgreSQL needs separate statements
+    await pool.query(`CREATE TABLE IF NOT EXISTS teachers (
+      id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL, password_hash TEXT NOT NULL,
+      full_name TEXT, created_at TEXT NOT NULL)`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS teacher_assignments (
+      id TEXT PRIMARY KEY, teacher_id TEXT NOT NULL, subject TEXT NOT NULL,
+      grade INTEGER NOT NULL, section INTEGER NOT NULL,
+      UNIQUE(teacher_id, subject, grade, section))`);
     return;
   }
 
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS students (
-      id TEXT PRIMARY KEY,
-      grade INTEGER NOT NULL,
-      section INTEGER NOT NULL,
-      student_number TEXT,
-      name_ar TEXT NOT NULL,
-      name_en TEXT
+      id TEXT PRIMARY KEY, grade INTEGER NOT NULL, section INTEGER NOT NULL,
+      student_number TEXT, name_ar TEXT NOT NULL, name_en TEXT
     )
   `);
-  try {
-    sqlite.exec('ALTER TABLE submissions ADD COLUMN student_number TEXT');
-  } catch {
-    /* column exists */
-  }
+  try { sqlite.exec('ALTER TABLE submissions ADD COLUMN student_number TEXT'); } catch { /* ok */ }
+  sqlite.exec(teacherTables);
 }
 
 export async function getRosterMeta() {
@@ -354,4 +370,177 @@ export async function replaceRoster(students) {
   });
   replaceAll(students);
   return { totalStudents: students.length, uploadedAt };
+}
+
+// ─── Teachers ───
+
+export async function createTeacher({ email, passwordHash, fullName }) {
+  const id = randomUUID();
+  const createdAt = new Date().toISOString();
+  const normalizedEmail = email.trim().toLowerCase();
+
+  if (usePostgres) {
+    await pool.query(
+      `INSERT INTO teachers (id, email, password_hash, full_name, created_at) VALUES ($1,$2,$3,$4,$5)`,
+      [id, normalizedEmail, passwordHash, fullName || '', createdAt]
+    );
+  } else {
+    sqlite.prepare(
+      `INSERT INTO teachers (id, email, password_hash, full_name, created_at) VALUES (?,?,?,?,?)`
+    ).run(id, normalizedEmail, passwordHash, fullName || '', createdAt);
+  }
+  return { id, email: normalizedEmail, fullName: fullName || '', createdAt };
+}
+
+export async function findTeacherByEmail(email) {
+  const normalizedEmail = email.trim().toLowerCase();
+  if (usePostgres) {
+    const { rows } = await pool.query('SELECT * FROM teachers WHERE email = $1', [normalizedEmail]);
+    return rows[0] || null;
+  }
+  return sqlite.prepare('SELECT * FROM teachers WHERE email = ?').get(normalizedEmail) || null;
+}
+
+export async function findTeacherById(id) {
+  if (usePostgres) {
+    const { rows } = await pool.query('SELECT id, email, full_name, created_at FROM teachers WHERE id = $1', [id]);
+    return rows[0] || null;
+  }
+  return sqlite.prepare('SELECT id, email, full_name, created_at FROM teachers WHERE id = ?').get(id) || null;
+}
+
+export async function setTeacherAssignments(teacherId, assignments) {
+  if (usePostgres) {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('DELETE FROM teacher_assignments WHERE teacher_id = $1', [teacherId]);
+      for (const a of assignments) {
+        await client.query(
+          `INSERT INTO teacher_assignments (id, teacher_id, subject, grade, section) VALUES ($1,$2,$3,$4,$5)`,
+          [randomUUID(), teacherId, a.subject, a.grade, a.section]
+        );
+      }
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+    return;
+  }
+  const tx = sqlite.transaction((list) => {
+    sqlite.prepare('DELETE FROM teacher_assignments WHERE teacher_id = ?').run(teacherId);
+    const ins = sqlite.prepare(
+      'INSERT INTO teacher_assignments (id, teacher_id, subject, grade, section) VALUES (?,?,?,?,?)'
+    );
+    for (const a of list) {
+      ins.run(randomUUID(), teacherId, a.subject, a.grade, a.section);
+    }
+  });
+  tx(assignments);
+}
+
+export async function getTeacherAssignments(teacherId) {
+  const query = 'SELECT subject, grade, section FROM teacher_assignments WHERE teacher_id = ? ORDER BY subject, grade, section';
+  if (usePostgres) {
+    const { rows } = await pool.query(
+      'SELECT subject, grade, section FROM teacher_assignments WHERE teacher_id = $1 ORDER BY subject, grade, section',
+      [teacherId]
+    );
+    return rows.map((r) => ({ subject: r.subject, grade: Number(r.grade), section: Number(r.section) }));
+  }
+  return sqlite.prepare(query.replace('?', '?')).all(teacherId)
+    .map((r) => ({ subject: r.subject, grade: r.grade, section: r.section }));
+}
+
+export async function getAllTeachersWithAssignments() {
+  let teachers;
+  if (usePostgres) {
+    const { rows } = await pool.query('SELECT id, email, full_name, created_at FROM teachers ORDER BY created_at DESC');
+    teachers = rows;
+  } else {
+    teachers = sqlite.prepare('SELECT id, email, full_name, created_at FROM teachers ORDER BY created_at DESC').all();
+  }
+  const result = [];
+  for (const t of teachers) {
+    const assignments = await getTeacherAssignments(t.id);
+    result.push({
+      id: t.id,
+      email: t.email,
+      fullName: t.full_name || '',
+      createdAt: t.created_at,
+      assignments,
+    });
+  }
+  return result;
+}
+
+function matchSubmission(student, submission, className) {
+  if (submission.className !== className) return false;
+  if (student.studentNumber && submission.studentNumber === student.studentNumber) return true;
+  return submission.studentName === student.nameAr;
+}
+
+export async function getTeacherDashboard(teacherId) {
+  const { formatClassName } = await import('./constants.js');
+  const assignments = await getTeacherAssignments(teacherId);
+  const allSubmissions = await getAllSubmissions();
+  const groups = [];
+
+  for (const a of assignments) {
+    const students = await getRosterStudents(a.grade, a.section);
+    const className = formatClassName(a.grade, a.section);
+    const studentsWithStatus = students.map((st) => {
+      const sub = allSubmissions.find((s) => matchSubmission(st, s, className));
+      return {
+        ...st,
+        completed: Boolean(sub),
+        submissionId: sub?.id || null,
+        profileLabel: sub?.profileLabel || null,
+      };
+    });
+    const sectionSubmissions = allSubmissions.filter((s) => s.className === className);
+    groups.push({
+      subject: a.subject,
+      grade: a.grade,
+      section: a.section,
+      className,
+      totalStudents: studentsWithStatus.length,
+      completedCount: studentsWithStatus.filter((s) => s.completed).length,
+      students: studentsWithStatus,
+      submissions: sectionSubmissions,
+    });
+  }
+  return { groups };
+}
+
+export async function getAdminOverview() {
+  const { SUBJECT_IDS } = await import('./constants.js');
+  const meta = await getRosterMeta();
+  const summary = await getRosterSummary();
+  const teachers = await getAllTeachersWithAssignments();
+  const submissions = await getAllSubmissions();
+
+  const registeredSubjects = new Set();
+  for (const t of teachers) {
+    for (const a of t.assignments) registeredSubjects.add(a.subject);
+  }
+
+  const subjectStatus = SUBJECT_IDS.map((id) => ({
+    id,
+    registered: registeredSubjects.has(id),
+    teacherCount: teachers.filter((t) => t.assignments.some((a) => a.subject === id)).length,
+  }));
+
+  return {
+    roster: meta,
+    summary,
+    totalTeachers: teachers.length,
+    totalSubmissions: submissions.length,
+    teachers,
+    subjectStatus,
+    submissions,
+  };
 }

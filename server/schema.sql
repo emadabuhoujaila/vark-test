@@ -21,6 +21,23 @@ CREATE TABLE IF NOT EXISTS students (
   name_en TEXT
 );
 
+CREATE TABLE IF NOT EXISTS teachers (
+  id TEXT PRIMARY KEY,
+  email TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  full_name TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS teacher_assignments (
+  id TEXT PRIMARY KEY,
+  teacher_id TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  grade INTEGER NOT NULL,
+  section INTEGER NOT NULL,
+  UNIQUE(teacher_id, subject, grade, section)
+);
+
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
@@ -29,3 +46,4 @@ CREATE TABLE IF NOT EXISTS settings (
 CREATE INDEX IF NOT EXISTS idx_submissions_submitted_at ON submissions(submitted_at DESC);
 CREATE INDEX IF NOT EXISTS idx_submissions_profile_type ON submissions(profile_type);
 CREATE INDEX IF NOT EXISTS idx_students_grade_section ON students(grade, section);
+CREATE INDEX IF NOT EXISTS idx_teacher_assignments_teacher ON teacher_assignments(teacher_id);

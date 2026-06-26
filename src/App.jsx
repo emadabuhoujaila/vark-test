@@ -3,9 +3,11 @@ import Layout from './components/Layout';
 import HomePage from './pages/HomePage';
 import StudentTestPage from './pages/StudentTestPage';
 import StudentResultPage from './pages/StudentResultPage';
-import TeacherLoginPage from './pages/TeacherLoginPage';
-import TeacherClassSelectPage from './pages/TeacherClassSelectPage';
-import TeacherDashboardPage from './pages/TeacherDashboardPage';
+import TeacherAuthPage from './pages/teacher/TeacherAuthPage';
+import TeacherSetupPage from './pages/teacher/TeacherSetupPage';
+import TeacherHomePage from './pages/teacher/TeacherHomePage';
+import AdminLoginPage from './pages/admin/AdminLoginPage';
+import AdminDashboardPage from './pages/admin/AdminDashboardPage';
 
 export default function App() {
   return (
@@ -14,9 +16,11 @@ export default function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/test" element={<StudentTestPage />} />
         <Route path="/result/:id" element={<StudentResultPage />} />
-        <Route path="/teacher" element={<TeacherLoginPage />} />
-        <Route path="/teacher/class" element={<TeacherClassSelectPage />} />
-        <Route path="/teacher/dashboard" element={<TeacherDashboardPage />} />
+        <Route path="/teacher" element={<TeacherAuthPage />} />
+        <Route path="/teacher/setup" element={<TeacherSetupPage />} />
+        <Route path="/teacher/home" element={<TeacherHomePage />} />
+        <Route path="/admin" element={<AdminLoginPage />} />
+        <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
       </Routes>
     </Layout>
   );

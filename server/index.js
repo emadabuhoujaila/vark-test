@@ -5,21 +5,28 @@ import multer from 'multer';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import {
+  hashPassword,
+  comparePassword,
+  signTeacherToken,
+  signAdminToken,
+} from './auth.js';
+import { requireTeacher, requireAdmin } from './middleware.js';
+import {
   initDb,
-  getAllSubmissions,
   getSubmissionById,
   createSubmission,
-  deleteSubmissionById,
-  clearAllSubmissions,
-  getTeacherPin,
-  setTeacherPin,
-  verifyTeacherPin,
+  createTeacher,
+  findTeacherByEmail,
+  findTeacherById,
+  setTeacherAssignments,
+  getTeacherAssignments,
+  getTeacherDashboard,
+  getAdminOverview,
   getRosterMeta,
   getRosterGrades,
   getRosterSections,
   getRosterStudents,
   replaceRoster,
-  getRosterSummary,
 } from './db.js';
 import { parseRosterExcel } from './rosterParser.js';
 
@@ -27,6 +34,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3001;
 const isProd = process.env.NODE_ENV === 'production';
+const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'admin@school.ae').toLowerCase();
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin2024';
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
@@ -43,16 +53,7 @@ app.get('/api/health', (_req, res) => {
   res.json({ ok: true, db: process.env.DATABASE_URL ? 'postgresql' : 'sqlite' });
 });
 
-app.get('/api/submissions', async (_req, res) => {
-  try {
-    const submissions = await getAllSubmissions();
-    res.json(submissions);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'فشل تحميل النتائج' });
-  }
-});
-
+// ─── Student (public) ───
 app.get('/api/submissions/:id', async (req, res) => {
   try {
     const submission = await getSubmissionById(req.params.id);
@@ -66,30 +67,20 @@ app.get('/api/submissions/:id', async (req, res) => {
 
 app.post('/api/submissions', async (req, res) => {
   try {
-    const {
-      studentName,
-      className,
-      studentNumber,
-      answers,
-      scores,
-      percentages,
-      dominantStyles,
-      profileLabel,
-      profileType,
-    } = req.body;
-    if (!studentName?.trim() || !answers?.length) {
+    const body = req.body;
+    if (!body.studentName?.trim() || !body.answers?.length) {
       return res.status(400).json({ error: 'بيانات غير مكتملة' });
     }
     const entry = await createSubmission({
-      studentName: studentName.trim(),
-      className: className?.trim() || '',
-      studentNumber: studentNumber?.trim() || '',
-      answers,
-      scores,
-      percentages,
-      dominantStyles,
-      profileLabel,
-      profileType,
+      studentName: body.studentName.trim(),
+      className: body.className?.trim() || '',
+      studentNumber: body.studentNumber?.trim() || '',
+      answers: body.answers,
+      scores: body.scores,
+      percentages: body.percentages,
+      dominantStyles: body.dominantStyles,
+      profileLabel: body.profileLabel,
+      profileType: body.profileType,
     });
     res.status(201).json(entry);
   } catch (err) {
@@ -102,8 +93,7 @@ app.get('/api/roster/meta', async (_req, res) => {
   try {
     res.json(await getRosterMeta());
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'فشل تحميل بيانات القائمة' });
+    res.status(500).json({ error: 'فشل تحميل البيانات' });
   }
 });
 
@@ -111,7 +101,6 @@ app.get('/api/roster/grades', async (_req, res) => {
   try {
     res.json(await getRosterGrades());
   } catch (err) {
-    console.error(err);
     res.status(500).json({ error: 'فشل تحميل الصفوف' });
   }
 });
@@ -122,7 +111,6 @@ app.get('/api/roster/sections', async (req, res) => {
     if (!grade) return res.status(400).json({ error: 'حدد الصف' });
     res.json(await getRosterSections(grade));
   } catch (err) {
-    console.error(err);
     res.status(500).json({ error: 'فشل تحميل الشعب' });
   }
 });
@@ -133,113 +121,123 @@ app.get('/api/roster/students', async (req, res) => {
     if (!grade || !section) return res.status(400).json({ error: 'حدد الصف والشعبة' });
     res.json(await getRosterStudents(grade, section));
   } catch (err) {
-    console.error(err);
     res.status(500).json({ error: 'فشل تحميل الأسماء' });
   }
 });
 
-app.get('/api/roster/summary', async (_req, res) => {
+// ─── Teacher auth ───
+app.post('/api/auth/teacher/register', async (req, res) => {
   try {
-    res.json(await getRosterSummary());
+    const { email, password, fullName } = req.body;
+    if (!email?.trim() || !password || password.length < 6) {
+      return res.status(400).json({ error: 'البريد وكلمة المرور (6 أحرف+) مطلوبان' });
+    }
+    const existing = await findTeacherByEmail(email);
+    if (existing) return res.status(409).json({ error: 'البريد مسجل مسبقًا' });
+
+    const passwordHash = await hashPassword(password);
+    const teacher = await createTeacher({ email, passwordHash, fullName });
+    const token = signTeacherToken(teacher);
+    res.status(201).json({ token, teacher: { id: teacher.id, email: teacher.email, fullName: teacher.fullName } });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'فشل تحميل ملخص القائمة' });
+    res.status(500).json({ error: 'فشل التسجيل' });
   }
 });
 
-app.post('/api/roster/upload', upload.single('file'), async (req, res) => {
+app.post('/api/auth/teacher/login', async (req, res) => {
   try {
-    const pin = req.headers['x-teacher-pin'];
-    if (!(await verifyTeacherPin(pin))) {
-      return res.status(401).json({ error: 'رمز المعلم غير صحيح' });
-    }
-    if (!req.file) {
-      return res.status(400).json({ error: 'يرجى اختيار ملف Excel (.xlsx)' });
-    }
-    const students = parseRosterExcel(req.file.buffer);
-    const result = await replaceRoster(students);
+    const { email, password } = req.body;
+    const teacher = await findTeacherByEmail(email);
+    if (!teacher) return res.status(401).json({ error: 'البريد أو كلمة المرور غير صحيحة' });
+
+    const valid = await comparePassword(password, teacher.password_hash);
+    if (!valid) return res.status(401).json({ error: 'البريد أو كلمة المرور غير صحيحة' });
+
+    const token = signTeacherToken({ id: teacher.id, email: teacher.email });
     res.json({
-      ok: true,
-      message: `تم رفع ${result.totalStudents} اسمًا بنجاح`,
-      ...result,
+      token,
+      teacher: { id: teacher.id, email: teacher.email, fullName: teacher.full_name || '' },
     });
   } catch (err) {
-    if (err.message === 'NO_STUDENTS') {
-      return res.status(400).json({ error: 'لم يُعثر على أسماء في الملف. تأكد من مطابقة نموذج سجل الأسماء.' });
+    console.error(err);
+    res.status(500).json({ error: 'فشل تسجيل الدخول' });
+  }
+});
+
+app.get('/api/auth/teacher/me', requireTeacher, async (req, res) => {
+  try {
+    const teacher = await findTeacherById(req.teacher.id);
+    const assignments = await getTeacherAssignments(req.teacher.id);
+    res.json({ teacher, assignments });
+  } catch (err) {
+    res.status(500).json({ error: 'فشل تحميل البيانات' });
+  }
+});
+
+app.put('/api/auth/teacher/assignments', requireTeacher, async (req, res) => {
+  try {
+    const { assignments } = req.body;
+    if (!Array.isArray(assignments) || !assignments.length) {
+      return res.status(400).json({ error: 'اختر مادة وصف وشعبة واحدة على الأقل' });
     }
-    if (err.message === 'INVALID_FILE_TYPE') {
-      return res.status(400).json({ error: 'يجب أن يكون الملف بصيغة .xlsx' });
+    const cleaned = assignments.map((a) => ({
+      subject: a.subject,
+      grade: Number(a.grade),
+      section: Number(a.section),
+    }));
+    await setTeacherAssignments(req.teacher.id, cleaned);
+    res.json({ ok: true, count: cleaned.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'فشل حفظ الاختيارات' });
+  }
+});
+
+app.get('/api/teacher/dashboard', requireTeacher, async (req, res) => {
+  try {
+    res.json(await getTeacherDashboard(req.teacher.id));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'فشل تحميل لوحة المعلم' });
+  }
+});
+
+// ─── Admin ───
+app.post('/api/auth/admin/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (email?.trim().toLowerCase() !== ADMIN_EMAIL || password !== ADMIN_PASSWORD) {
+      return res.status(401).json({ error: 'بيانات الدخول غير صحيحة' });
+    }
+    const token = signAdminToken(ADMIN_EMAIL);
+    res.json({ token, email: ADMIN_EMAIL });
+  } catch (err) {
+    res.status(500).json({ error: 'فشل تسجيل الدخول' });
+  }
+});
+
+app.get('/api/admin/overview', requireAdmin, async (_req, res) => {
+  try {
+    res.json(await getAdminOverview());
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'فشل تحميل البيانات' });
+  }
+});
+
+app.post('/api/admin/roster/upload', requireAdmin, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'اختر ملف Excel' });
+    const students = parseRosterExcel(req.file.buffer);
+    const result = await replaceRoster(students);
+    res.json({ ok: true, message: `تم رفع ${result.totalStudents} اسمًا`, ...result });
+  } catch (err) {
+    if (err.message === 'NO_STUDENTS') {
+      return res.status(400).json({ error: 'لم يُعثر على أسماء في الملف' });
     }
     console.error(err);
     res.status(500).json({ error: 'فشل رفع الملف' });
-  }
-});
-
-app.delete('/api/submissions/:id', async (req, res) => {
-  try {
-    const pin = req.headers['x-teacher-pin'];
-    if (!(await verifyTeacherPin(pin))) {
-      return res.status(401).json({ error: 'رمز المعلم غير صحيح' });
-    }
-    await deleteSubmissionById(req.params.id);
-    res.json({ ok: true });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'فشل الحذف' });
-  }
-});
-
-app.delete('/api/submissions', async (req, res) => {
-  try {
-    const pin = req.headers['x-teacher-pin'];
-    if (!(await verifyTeacherPin(pin))) {
-      return res.status(401).json({ error: 'رمز المعلم غير صحيح' });
-    }
-    await clearAllSubmissions();
-    res.json({ ok: true });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'فشل مسح النتائج' });
-  }
-});
-
-app.post('/api/auth/verify', async (req, res) => {
-  try {
-    const valid = await verifyTeacherPin(req.body.pin);
-    res.json({ valid });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'فشل التحقق' });
-  }
-});
-
-app.get('/api/settings/teacher-pin', async (req, res) => {
-  try {
-    const pin = req.headers['x-teacher-pin'];
-    if (!(await verifyTeacherPin(pin))) {
-      return res.status(401).json({ error: 'رمز المعلم غير صحيح' });
-    }
-    res.json({ pin: await getTeacherPin() });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'فشل قراءة الإعدادات' });
-  }
-});
-
-app.put('/api/settings/teacher-pin', async (req, res) => {
-  try {
-    const { pin: newPin, currentPin } = req.body;
-    if (!newPin || newPin.length < 4) {
-      return res.status(400).json({ error: 'الرمز الجديد قصير جدًا' });
-    }
-    await setTeacherPin(newPin, currentPin);
-    res.json({ ok: true, pin: newPin });
-  } catch (err) {
-    if (err.message === 'INVALID_CURRENT_PIN') {
-      return res.status(401).json({ error: 'الرمز الحالي غير صحيح' });
-    }
-    console.error(err);
-    res.status(500).json({ error: 'فشل تحديث الرمز' });
   }
 });
 
