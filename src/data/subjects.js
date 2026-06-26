@@ -14,3 +14,8 @@ export function getSubjectName(id) {
 export function getSubjectIcon(id) {
   return SUBJECTS.find((s) => s.id === id)?.icon || '📚';
 }
+
+/** CSS class suffix per subject for colored badges */
+export function getSubjectClass(id) {
+  return SUBJECTS.some((s) => s.id === id) ? `subject-${id}` : 'subject-default';
+}

@@ -1162,18 +1162,6 @@ a {
   font-size: 0.85rem;
 }
 
-.subject-chip.registered {
-  border-color: #10b981;
-  background: #ecfdf5;
-  color: #065f46;
-}
-
-.subject-chip.unregistered {
-  border-color: #f87171;
-  background: #fef2f2;
-  color: #991b1b;
-}
-
 .subject-chip-icon {
   font-size: 1.25rem;
 }
@@ -1187,6 +1175,116 @@ a {
 .subject-chip-status {
   font-size: 0.75rem;
   font-weight: 600;
+}
+
+/* Teacher assignments in admin table */
+.admin-teachers-table tbody tr {
+  cursor: default;
+}
+
+.admin-teachers-table .assignments-col,
+.admin-teachers-table .assignments-cell {
+  min-width: 280px;
+}
+
+.teacher-assignments {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.assignment-group {
+  padding: 0.5rem 0.6rem;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.assignment-group-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #64748b;
+  margin-bottom: 0.4rem;
+  letter-spacing: 0.01em;
+}
+
+.assignment-subjects {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.assignment-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.28rem 0.55rem;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border: 1.5px solid;
+  line-height: 1.2;
+}
+
+.assignment-badge-icon {
+  font-size: 0.95rem;
+}
+
+/* Subject color themes — shared across admin views */
+.subject-science,
+.subject-chip.subject-science.registered {
+  border-color: #10b981;
+  background: #ecfdf5;
+  color: #065f46;
+}
+
+.subject-math,
+.subject-chip.subject-math.registered {
+  border-color: #3b82f6;
+  background: #eff6ff;
+  color: #1e40af;
+}
+
+.subject-arabic,
+.subject-chip.subject-arabic.registered {
+  border-color: #f59e0b;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.subject-english,
+.subject-chip.subject-english.registered {
+  border-color: #8b5cf6;
+  background: #f5f3ff;
+  color: #5b21b6;
+}
+
+.subject-islamic,
+.subject-chip.subject-islamic.registered {
+  border-color: #14b8a6;
+  background: #f0fdfa;
+  color: #115e59;
+}
+
+.subject-social,
+.subject-chip.subject-social.registered {
+  border-color: #f43f5e;
+  background: #fff1f2;
+  color: #9f1239;
+}
+
+.subject-default,
+.subject-chip.subject-default.registered {
+  border-color: #64748b;
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.subject-chip.unregistered {
+  border-color: #f87171 !important;
+  background: #fef2f2 !important;
+  color: #991b1b !important;
 }
 
 .admin-grade-block {

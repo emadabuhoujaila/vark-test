@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { SUBJECTS, getSubjectName } from '../../data/subjects';
+import { SUBJECTS, getSubjectName, getSubjectIcon, getSubjectClass } from '../../data/subjects';
 import { GRADE_LABELS } from '../../data/grades';
 import {
   adminCreateTeacher,
@@ -85,6 +85,45 @@ export default function AdminTeachersPanel({ teachers, onRefresh }) {
   function isSelected(subject, grade, section) {
     return form.assignments.some(
       (a) => a.subject === subject && a.grade === grade && a.section === section
+    );
+  }
+
+  function groupAssignments(assignments) {
+    const map = new Map();
+    for (const a of assignments) {
+      const key = `${a.grade}-${a.section}`;
+      if (!map.has(key)) {
+        map.set(key, { grade: a.grade, section: a.section, subjects: [] });
+      }
+      map.get(key).subjects.push(a.subject);
+    }
+    return [...map.values()].sort((x, y) => x.grade - y.grade || x.section - y.section);
+  }
+
+  function TeacherAssignmentsCell({ assignments }) {
+    if (!assignments.length) return <span className="muted">لم يحدد</span>;
+
+    return (
+      <div className="teacher-assignments">
+        {groupAssignments(assignments).map((group) => (
+          <div key={`${group.grade}-${group.section}`} className="assignment-group">
+            <span className="assignment-group-label">
+              {GRADE_LABELS[group.grade] || `صف ${group.grade}`} · ش{group.section}
+            </span>
+            <div className="assignment-subjects">
+              {group.subjects.map((subjectId) => (
+                <span
+                  key={subjectId}
+                  className={`assignment-badge ${getSubjectClass(subjectId)}`}
+                >
+                  <span className="assignment-badge-icon">{getSubjectIcon(subjectId)}</span>
+                  {getSubjectName(subjectId)}
+                </span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
     );
   }
 
@@ -207,12 +246,12 @@ export default function AdminTeachersPanel({ teachers, onRefresh }) {
 
       <div className="card table-card">
         <div className="table-wrap">
-          <table className="results-table">
+          <table className="results-table admin-teachers-table">
             <thead>
               <tr>
                 <th>الاسم</th>
                 <th>البريد</th>
-                <th>الحصص</th>
+                <th className="assignments-col">الحصص</th>
                 <th>تاريخ التسجيل</th>
                 <th>إجراءات</th>
               </tr>
@@ -222,13 +261,8 @@ export default function AdminTeachersPanel({ teachers, onRefresh }) {
                 <tr key={t.id}>
                   <td>{t.fullName || '—'}</td>
                   <td dir="ltr">{t.email}</td>
-                  <td>
-                    {t.assignments.map((a) => (
-                      <span key={`${a.subject}-${a.grade}-${a.section}`} className="class-pill">
-                        {getSubjectName(a.subject)} {GRADE_LABELS[a.grade]}-{a.section}
-                      </span>
-                    ))}
-                    {!t.assignments.length && <span className="muted">لم يحدد</span>}
+                  <td className="assignments-cell">
+                    <TeacherAssignmentsCell assignments={t.assignments} />
                   </td>
                   <td>{new Date(t.createdAt).toLocaleDateString('ar-SA')}</td>
                   <td className="actions-cell">

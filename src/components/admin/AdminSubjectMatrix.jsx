@@ -1,4 +1,4 @@
-import { SUBJECTS, getSubjectName } from '../../data/subjects';
+import { SUBJECTS, getSubjectName, getSubjectClass } from '../../data/subjects';
 import { GRADE_LABELS } from '../../data/grades';
 
 export default function AdminSubjectMatrix({ matrix }) {
@@ -28,7 +28,7 @@ export default function AdminSubjectMatrix({ matrix }) {
                     return (
                       <div
                         key={sub.id}
-                        className={`subject-chip ${sub.registered ? 'registered' : 'unregistered'}`}
+                        className={`subject-chip ${getSubjectClass(sub.id)} ${sub.registered ? 'registered' : 'unregistered'}`}
                       >
                         <span className="subject-chip-icon">{info?.icon || '📚'}</span>
                         <span className="subject-chip-name">{getSubjectName(sub.id)}</span>
